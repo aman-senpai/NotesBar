@@ -2,6 +2,8 @@
 
 A modern menu bar app for quick access to your Obsidian notes.
 
+![App Icon](https://github.com/user-attachments/assets/b97947f8-94e9-479f-b756-9726736b293d)
+
 ![ScreenShot](https://github.com/user-attachments/assets/37ba47c4-8284-4204-a8b1-d69f76447796)
 
 
