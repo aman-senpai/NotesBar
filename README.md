@@ -1,8 +1,9 @@
 # NotesBar
 
-A modern menu bar app for quick access to your Obsidian notes. Built with SwiftUI for macOS.
+A modern menu bar app for quick access to your Obsidian notes.
 
-![NotesBar Screenshot](screenshot.png)
+![ScreenShot](https://github.com/user-attachments/assets/37ba47c4-8284-4204-a8b1-d69f76447796)
+
 
 ## Features
 
@@ -62,9 +63,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
