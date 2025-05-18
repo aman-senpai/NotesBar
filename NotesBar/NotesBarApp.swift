@@ -17,6 +17,9 @@ struct ObsidianQuickNoteApp: App {
         let noteVM = NoteViewModel()
         _noteViewModel = StateObject(wrappedValue: noteVM)
         _searchViewModel = StateObject(wrappedValue: SearchViewModel(noteViewModel: noteVM))
+        
+        // Hide dock icon
+        NSApp.setActivationPolicy(.accessory)
     }
     
     var body: some Scene {
