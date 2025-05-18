@@ -7,15 +7,8 @@
 
 import SwiftUI
 
-class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
-    }
-}
-
 @main
-struct ObsidianQuickNoteApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+struct NotesBarApp: App {
     @StateObject private var vaultViewModel = VaultViewModel()
     @StateObject private var noteViewModel = NoteViewModel()
     @StateObject private var searchViewModel: SearchViewModel
@@ -24,6 +17,9 @@ struct ObsidianQuickNoteApp: App {
         let noteVM = NoteViewModel()
         _noteViewModel = StateObject(wrappedValue: noteVM)
         _searchViewModel = StateObject(wrappedValue: SearchViewModel(noteViewModel: noteVM))
+        
+        // Ensure the app doesn't appear in the dock
+        NSApp.setActivationPolicy(.accessory)
     }
     
     var body: some Scene {
