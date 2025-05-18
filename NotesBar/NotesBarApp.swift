@@ -17,9 +17,6 @@ struct NotesBarApp: App {
         let noteVM = NoteViewModel()
         _noteViewModel = StateObject(wrappedValue: noteVM)
         _searchViewModel = StateObject(wrappedValue: SearchViewModel(noteViewModel: noteVM))
-        
-        // Ensure the app doesn't appear in the dock
-        NSApp.setActivationPolicy(.accessory)
     }
     
     var body: some Scene {
@@ -39,5 +36,11 @@ struct NotesBarApp: App {
             }
         }
         .menuBarExtraStyle(.window)
+        .onAppear {
+            // Set activation policy after app is initialized
+            DispatchQueue.main.async {
+                NSApp.setActivationPolicy(.accessory)
+            }
+        }
     }
 }
