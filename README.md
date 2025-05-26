@@ -48,7 +48,7 @@ Are you tired of interrupting your workflow to open Obsidian just to quickly ref
 
 ### Steps
 
-1.  **Download:** Get the latest `.dmg` or `.zip` file from the [Releases page](https://github.com/yourusername/NotesBar/releases).
+1.  **Download:** Get the latest `.dmg` or `.zip` file from the [Releases page](https://github.com/aman-senpai/NotesBar/releases).
 2.  **Install:** Open the downloaded file and drag `NotesBar.app` into your `Applications` folder.
 3.  **Launch:** Open NotesBar from your Applications folder or Launchpad.
 4.  **Select Vault:** Click the NotesBar icon that appears in your menu bar. The first time, you will be prompted to select your Obsidian vault folder. You can change or add vaults later via the app's settings.
