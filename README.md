@@ -25,7 +25,6 @@ NotesBar is a modern macOS menu bar application designed for Obsidian users who 
 
 ![NotesBar Screenshot](https://github.com/user-attachments/assets/37ba47c4-8284-4204-a8b1-d69f76447796)
 
-*Add more screenshots here if available, showing different features like vault switching, search, or preview.*
 
 ---
 
