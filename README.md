@@ -111,8 +111,3 @@ Please ensure your code adheres to the project's style and passes any tests.
 * [Obsidian](https://obsidian.md/) - For creating the incredible note-taking ecosystem.
 * [Down](https://github.com/johnxnguyen/Down) - For providing a fantastic Markdown rendering library.
 * The vibrant SwiftUI and macOS development communities - For endless inspiration and resources.
-
----
-
-*Replace `[Releases page]` and `[MIT License](LICENSE)` links with the actual URLs once they exist in your repository.*
-*Consider adding contribution guidelines or a code of conduct if the project grows.*
