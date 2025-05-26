@@ -2,8 +2,6 @@
 
 **Quick access to your Obsidian notes, right from your macOS menu bar.**
 
-<img src="https://github.com/aman-senpai/NotesBar/assets/b97947f8-94e9-479f-b756-9726736b293d" alt="NotesBar App Icon" width="80"/>
-
 NotesBar is a modern macOS menu bar application designed for Obsidian users who want lightning-fast access to their knowledge base without switching contexts.
 
 ---
@@ -18,12 +16,6 @@ NotesBar is a modern macOS menu bar application designed for Obsidian users who 
 - 🔗 **Seamless Obsidian Integration:** Leverages Obsidian's URI scheme for smooth note opening.
 - 🔒 **Secure Vault Handling:** Uses security-scoped bookmarks for safe and persistent access to your vault files.
 - 🎨 **Native macOS Experience:** Built with SwiftUI for a modern, native look and feel that blends perfectly with macOS.
-
----
-
-## 🖼️ Screenshots
-
-![NotesBar Screenshot](https://github.com/aman-senpai/NotesBar/assets/37ba47c4-8284-4204-a8b1-d69f76447796)
 
 ---
 
