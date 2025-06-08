@@ -14,6 +14,7 @@ NotesBar is a modern macOS menu bar application designed for Obsidian users who 
 - 📂 **Intuitive File Browser:** Navigate your vault's folder structure directly within the app.
 - 👀 **Quick Markdown Preview:** Hover over a note in the list to see its contents without opening Obsidian.
 - 🔗 **Seamless Obsidian Integration:** Leverages Obsidian's URI scheme for smooth note opening.
+- 🎨 **Canvas Creator:** Create new Obsidian canvases with a single click.
 - 🔒 **Secure Vault Handling:** Uses security-scoped bookmarks for safe and persistent access to your vault files.
 - 🎨 **Native macOS Experience:** Built with SwiftUI for a modern, native look and feel that blends perfectly with macOS.
 
@@ -84,11 +85,6 @@ Interested in contributing or building from source?
 
 ## 🙌 Contributing
 
-<<<<<<< HEAD
-- [Obsidian](https://obsidian.md/) for the amazing note-taking app
-- [Down](https://github.com/johnxnguyen/Down) for Markdown rendering
-- The SwiftUI and macOS development community CN
-=======
 Contributions are highly welcome! Whether it's submitting bug reports, suggesting new features, or opening pull requests, your help is appreciated.
 
 1. [Fork the repository](https://github.com/aman-senpai/NotesBar/fork).
@@ -106,4 +102,3 @@ Please ensure your code adheres to the project's style and passes any tests.
 - [Obsidian](https://obsidian.md/) – For creating the incredible note-taking ecosystem.
 - [Down](https://github.com/johnxnguyen/Down) – For providing a fantastic Markdown rendering library.
 - The vibrant SwiftUI and macOS development communities – For endless inspiration and resources.
->>>>>>> eaac9eaa93a59ebdfa78a9eb659e0f884fd638ec
