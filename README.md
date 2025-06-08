@@ -70,4 +70,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [Obsidian](https://obsidian.md/) for the amazing note-taking app
 - [Down](https://github.com/johnxnguyen/Down) for Markdown rendering
-- The SwiftUI and macOS development community 
+- The SwiftUI and macOS development community CN

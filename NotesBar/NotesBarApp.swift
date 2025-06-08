@@ -17,6 +17,11 @@ struct NotesBarApp: App {
         let noteVM = NoteViewModel()
         _noteViewModel = StateObject(wrappedValue: noteVM)
         _searchViewModel = StateObject(wrappedValue: SearchViewModel(noteViewModel: noteVM))
+        
+        // Set activation policy before app launches
+        DispatchQueue.main.async {
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
     
     var body: some Scene {
@@ -36,11 +41,5 @@ struct NotesBarApp: App {
             }
         }
         .menuBarExtraStyle(.window)
-        .onAppear {
-            // Set activation policy after app is initialized
-            DispatchQueue.main.async {
-                NSApp.setActivationPolicy(.accessory)
-            }
-        }
     }
 }

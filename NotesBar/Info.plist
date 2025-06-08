@@ -22,5 +22,7 @@
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Required to open notes in Obsidian</string>
 </dict>
 </plist> 

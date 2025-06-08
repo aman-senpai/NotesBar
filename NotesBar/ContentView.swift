@@ -40,6 +40,18 @@ struct ContentView: View {
         }
     }
     
+    private func openOrCreateCanvas() {
+        // Use Obsidian's canvas interface with the correct URI scheme
+        if let vault = vaultViewModel.currentVault,
+           let encodedVaultName = vault.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            // Create a new canvas using the 'new' action with type=canvas
+            let urlString = "obsidian://new?vault=\(encodedVaultName)&name=Untitled.canvas&type=canvas"
+            if let url = URL(string: urlString) {
+                NSWorkspace.shared.open(url)
+            }
+        }
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // Top Bar with Vault Selector and Action Buttons
@@ -72,6 +84,13 @@ struct ContentView: View {
                     }
                     .buttonStyle(PlainButtonStyle())
                     .help("Today's Note")
+                    
+                    Button(action: { openOrCreateCanvas() }) {
+                        Image(systemName: "square.grid.2x2")
+                            .foregroundColor(.white)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .help("Create Canvas")
                     
                     Button(action: { loadVaultContents() }) {
                         Image(systemName: "arrow.clockwise")
@@ -395,23 +414,7 @@ struct FolderPopoverView: View {
                         if item.isDirectory {
                             FolderPopoverItemView(item: item)
                         } else {
-                            Button(action: {
-                                isInteracting = true
-                                openItem(item)
-                                shouldDismiss = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "doc.text.fill")
-                                        .foregroundColor(.gray)
-                                    Text(item.name.replacingOccurrences(of: ".md", with: ""))
-                                        .foregroundColor(.primary)
-                                    Spacer()
-                                }
-                                .padding(.vertical, 2)
-                                .padding(.horizontal, 8)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            Divider()
+                            FileRow(file: item)
                         }
                     }
                 }
@@ -426,21 +429,6 @@ struct FolderPopoverView: View {
         .onTapGesture {
             isInteracting = true
         }
-        .onChange(of: shouldDismiss) { oldValue, newValue in
-            if newValue {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    if let window = NSApp.windows.first(where: { $0.isKind(of: NSPopover.self) }) {
-                        window.close()
-                    }
-                }
-            }
-        }
-    }
-    
-    private func openItem(_ item: NoteFile) {
-        let vaultPath = UserDefaults.standard.string(forKey: "vaultPath") ?? ""
-        let vaultName = (vaultPath as NSString).lastPathComponent
-        noteViewModel.openNote(item, vaultName: vaultName)
     }
 }
 
@@ -462,17 +450,17 @@ struct FolderPopoverItemView: View {
         }) {
             HStack {
                 Image(systemName: "folder.fill")
-                    .foregroundColor(.white)
+                    .foregroundColor(.gray)
                 Text(item.name)
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                 Spacer()
                 Text("\(item.children?.count ?? 0)")
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(.gray)
                     .font(.caption)
             }
             .padding(.vertical, 4)
             .padding(.horizontal, 8)
-            .background(isHovered ? Color.white.opacity(0.1) : Color.clear)
+            .background(isHovered ? Color.gray.opacity(0.1) : Color.clear)
             .cornerRadius(6)
         }
         .buttonStyle(PlainButtonStyle())
@@ -482,19 +470,19 @@ struct FolderPopoverItemView: View {
             // Cancel any pending hide work
             hideWorkItem?.cancel()
             
-            if (hovering || isPopoverHovered || isInteracting) && (item.children?.count ?? 0) > 0 {
+            if hovering && (item.children?.count ?? 0) > 0 {
                 showPopover = true
-            } else {
+            } else if !hovering && !isPopoverHovered {
                 // Create a new work item for hiding the popover
                 let workItem = DispatchWorkItem {
-                    if !isInteracting {
+                    if !isPopoverHovered {
                         showPopover = false
                     }
                 }
                 hideWorkItem = workItem
                 
-                // Schedule the work item with a longer delay
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
+                // Schedule the work item with a shorter delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
             }
         }
         .popover(isPresented: $showPopover, arrowEdge: .trailing) {
@@ -506,22 +494,48 @@ struct FolderPopoverItemView: View {
             )
             .frame(width: 300, height: 400)
         }
-        .onChange(of: shouldDismiss) { oldValue, newValue in
-            if newValue {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    if let window = NSApp.windows.first(where: { $0.isKind(of: NSPopover.self) }) {
-                        window.close()
-                    }
-                }
-            }
-        }
-        Divider()
     }
     
     private func openFolder(_ folder: NoteFile) {
         let vaultPath = UserDefaults.standard.string(forKey: "vaultPath") ?? ""
         let vaultName = (vaultPath as NSString).lastPathComponent
-        noteViewModel.openNote(folder, vaultName: vaultName)
+        
+        // Get the relative path and ensure it starts with a forward slash
+        var relativePath = folder.relativePath
+        if !relativePath.hasPrefix("/") {
+            relativePath = "/" + relativePath
+        }
+        
+        // Remove leading slash for the URL
+        if relativePath.hasPrefix("/") {
+            relativePath = String(relativePath.dropFirst())
+        }
+        
+        // Properly encode the path components
+        let encodedPath = relativePath
+            .components(separatedBy: "/")
+            .map { $0.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0 }
+            .joined(separator: "%2F")
+        
+        // Create and open the Obsidian URL
+        if let encodedVaultName = vaultName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            let urlString = "obsidian://open?vault=\(encodedVaultName)&file=\(encodedPath)"
+            if let url = URL(string: urlString) {
+                NSWorkspace.shared.open(url)
+                return
+            }
+        }
+        
+        // Fallback: Try to open the folder directly
+        let folderURL = URL(fileURLWithPath: folder.path)
+        let obsidianURL = URL(fileURLWithPath: "/Applications/Obsidian.app")
+        let config = NSWorkspace.OpenConfiguration()
+        
+        NSWorkspace.shared.open([folderURL], withApplicationAt: obsidianURL, configuration: config) { _, error in
+            if let error = error {
+                print("Error opening folder: \(error.localizedDescription)")
+            }
+        }
     }
 }
 
