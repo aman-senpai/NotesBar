@@ -56,7 +56,34 @@ struct ContentView: View {
         VStack(spacing: 0) {
             // Top Bar with Vault Selector and Action Buttons
             HStack {
-                Button(action: { vaultViewModel.selectVault() }) {
+                Menu {
+                    ForEach(vaultViewModel.savedVaults) { vault in
+                        Button(action: { vaultViewModel.switchToVault(vault) }) {
+                            HStack {
+                                Text(vault.name)
+                                if vault.id == vaultViewModel.currentVault?.id {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    Button(action: { vaultViewModel.selectVault() }) {
+                        Label("Add Vault", systemImage: "plus")
+                    }
+                    
+                    if !vaultViewModel.savedVaults.isEmpty {
+                        Divider()
+                        
+                        ForEach(vaultViewModel.savedVaults) { vault in
+                            Button(action: { vaultViewModel.removeVault(vault) }) {
+                                Label("Remove \(vault.name)", systemImage: "minus")
+                            }
+                        }
+                    }
+                } label: {
                     HStack {
                         Image(systemName: "folder")
                             .foregroundColor(.white)
@@ -72,7 +99,7 @@ struct ContentView: View {
                     .background(Color.white.opacity(0.1))
                     .cornerRadius(8)
                 }
-                .buttonStyle(PlainButtonStyle())
+                .menuStyle(BorderlessButtonMenuStyle())
                 
                 Spacer()
                 
@@ -157,6 +184,15 @@ struct ContentView: View {
         .frame(width: 400, height: 600)
         .onAppear {
             loadVaultContents()
+            
+            // Add observer for vault refresh notification
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("RefreshVaultFiles"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                loadVaultContents()
+            }
         }
         .sheet(isPresented: $showAbout) {
             AboutView()
