@@ -117,13 +117,6 @@ struct MarkdownPreviewView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
                         .help("Preview")
-                    } else {
-                        Button(action: { isEditing = true }) {
-                            Image(systemName: "pencil")
-                                .foregroundColor(.blue)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .help("Edit")
                     }
                 }
             }
@@ -161,6 +154,10 @@ struct MarkdownPreviewView: View {
                     }
                 }
                 .frame(width: 450, height: 400)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    isEditing = true
+                }
             }
             
             if let error = saveError {
