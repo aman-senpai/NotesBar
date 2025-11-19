@@ -7,8 +7,9 @@ struct MarkdownPreviewView: View {
     @State private var content: String = ""
     @State private var isHovered = false
     @State private var isEditing = false
-    @State private var hasUnsavedChanges = false
     @State private var saveError: String?
+    @State private var lastSavedContent: String = ""
+    @State private var autoSaveTask: Task<Void, Never>?
     
     private func createStyledAttributedString() -> NSAttributedString? {
         guard let attributedString = try? Down(markdownString: content).toAttributedString() else {
@@ -94,10 +95,15 @@ struct MarkdownPreviewView: View {
                     Text(file.name)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.primary)
-                    if hasUnsavedChanges {
-                        Text("Unsaved changes")
-                            .font(.system(size: 11))
-                            .foregroundColor(.orange)
+                    if content != lastSavedContent {
+                        HStack(spacing: 4) {
+                            ProgressView()
+                                .scaleEffect(0.5)
+                                .frame(width: 12, height: 12)
+                            Text("Saving...")
+                                .font(.system(size: 11))
+                                .foregroundColor(.blue)
+                        }
                     }
                 }
                 
@@ -111,14 +117,6 @@ struct MarkdownPreviewView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
                         .help("Preview")
-                        
-                        Button(action: saveContent) {
-                            Image(systemName: "square.and.arrow.down")
-                                .foregroundColor(.green)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .help("Save")
-                        .disabled(!hasUnsavedChanges)
                     } else {
                         Button(action: { isEditing = true }) {
                             Image(systemName: "pencil")
@@ -141,7 +139,7 @@ struct MarkdownPreviewView: View {
                     get: { content },
                     set: { newValue in
                         content = newValue
-                        hasUnsavedChanges = true
+                        scheduleAutoSave()
                     }
                 ))
                 .font(.system(size: 14, design: .monospaced))
@@ -179,6 +177,9 @@ struct MarkdownPreviewView: View {
         .onAppear {
             loadContent()
         }
+        .onDisappear {
+            autoSaveTask?.cancel()
+        }
         .onHover { hovering in
             isHovered = hovering
         }
@@ -190,8 +191,27 @@ struct MarkdownPreviewView: View {
             content = try String(contentsOf: fileURL, encoding: .utf8)
             // Ensure proper line endings
             content = content.replacingOccurrences(of: "\r\n", with: "\n")
+            lastSavedContent = content
         } catch {
             content = "Error loading content: \(error.localizedDescription)"
+        }
+    }
+    
+    private func scheduleAutoSave() {
+        // Cancel any existing save task
+        autoSaveTask?.cancel()
+        
+        // Create a new task that waits 1 second before saving
+        autoSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+            
+            // Check if task was cancelled
+            guard !Task.isCancelled else { return }
+            
+            // Save on main thread
+            await MainActor.run {
+                saveContent()
+            }
         }
     }
     
@@ -199,7 +219,7 @@ struct MarkdownPreviewView: View {
         let fileURL = URL(fileURLWithPath: file.path)
         do {
             try content.write(to: fileURL, atomically: true, encoding: .utf8)
-            hasUnsavedChanges = false
+            lastSavedContent = content
             saveError = nil
         } catch {
             saveError = "Failed to save: \(error.localizedDescription)"
