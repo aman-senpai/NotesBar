@@ -41,12 +41,11 @@ struct ContentView: View {
         }
     }
     
-    private func openOrCreateCanvas() {
-        // Use Obsidian's canvas interface with the correct URI scheme
+    private func createNewNote() {
+        // Create a new note in Obsidian
         if let vault = vaultViewModel.currentVault,
            let encodedVaultName = vault.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            // Create a new canvas using the 'new' action with type=canvas
-            let urlString = "obsidian://new?vault=\(encodedVaultName)&name=Untitled.canvas&type=canvas"
+            let urlString = "obsidian://new?vault=\(encodedVaultName)"
             if let url = URL(string: urlString) {
                 NSWorkspace.shared.open(url)
             }
@@ -106,40 +105,35 @@ struct ContentView: View {
                 
                 // Action Buttons
                 HStack(spacing: 12) {
-                    Button(action: { openOrCreateTodayNote() }) {
-                        Image(systemName: "calendar")
-                            .foregroundColor(.white)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .help("Today's Note")
+                    ActionButton(
+                        icon: "plus.circle",
+                        action: { createNewNote() },
+                        tooltip: "New Note"
+                    )
                     
-                    Button(action: { openOrCreateCanvas() }) {
-                        Image(systemName: "square.grid.2x2")
-                            .foregroundColor(.white)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .help("Create Canvas")
+                    ActionButton(
+                        icon: "calendar",
+                        action: { openOrCreateTodayNote() },
+                        tooltip: "Today's Note"
+                    )
                     
-                    Button(action: { loadVaultContents() }) {
-                        Image(systemName: "arrow.clockwise")
-                            .foregroundColor(.white)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .help("Refresh Notes")
+                    ActionButton(
+                        icon: "arrow.clockwise",
+                        action: { loadVaultContents() },
+                        tooltip: "Refresh Notes"
+                    )
                     
-                    Button(action: { showAbout = true }) {
-                        Image(systemName: "info.circle")
-                            .foregroundColor(.white)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .help("About")
+                    ActionButton(
+                        icon: "info.circle",
+                        action: { showAbout = true },
+                        tooltip: "About"
+                    )
                     
-                    Button(action: { NSApplication.shared.terminate(nil) }) {
-                        Image(systemName: "xmark.circle")
-                            .foregroundColor(.white)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .help("Quit")
+                    ActionButton(
+                        icon: "xmark.circle",
+                        action: { NSApplication.shared.terminate(nil) },
+                        tooltip: "Quit"
+                    )
                 }
             }
             .padding(.horizontal)
@@ -521,6 +515,29 @@ extension String {
     func containsAll(_ substrings: [Substring]) -> Bool {
         substrings.allSatisfy { substring in
             self.contains(substring)
+        }
+    }
+}
+
+// MARK: - Action Button Component
+struct ActionButton: View {
+    let icon: String
+    let action: () -> Void
+    let tooltip: String
+    @State private var isHovered = false
+    
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .foregroundColor(.white)
+                .padding(6)
+                .background(isHovered ? Color.white.opacity(0.2) : Color.clear)
+                .clipShape(Circle())
+        }
+        .buttonStyle(PlainButtonStyle())
+        .help(tooltip)
+        .onHover { hovering in
+            isHovered = hovering
         }
     }
 }
