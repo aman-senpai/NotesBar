@@ -6,6 +6,9 @@ struct MarkdownPreviewView: View {
     let file: NoteFile
     @State private var content: String = ""
     @State private var isHovered = false
+    @State private var isEditing = false
+    @State private var hasUnsavedChanges = false
+    @State private var saveError: String?
     
     private func createStyledAttributedString() -> NSAttributedString? {
         guard let attributedString = try? Down(markdownString: content).toAttributedString() else {
@@ -85,34 +88,90 @@ struct MarkdownPreviewView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header with file name
+            // Header with file name and controls
             HStack {
-                Text(file.name)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(file.name)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.primary)
+                    if hasUnsavedChanges {
+                        Text("Unsaved changes")
+                            .font(.system(size: 11))
+                            .foregroundColor(.orange)
+                    }
+                }
+                
                 Spacer()
+                
+                HStack(spacing: 8) {
+                    if isEditing {
+                        Button(action: { isEditing = false }) {
+                            Image(systemName: "eye")
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .help("Preview")
+                        
+                        Button(action: saveContent) {
+                            Image(systemName: "square.and.arrow.down")
+                                .foregroundColor(.green)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .help("Save")
+                        .disabled(!hasUnsavedChanges)
+                    } else {
+                        Button(action: { isEditing = true }) {
+                            Image(systemName: "pencil")
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .help("Edit")
+                    }
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(.ultraThinMaterial)
             
-            // Content
-            ScrollView {
-                if let nsAttributedString = createStyledAttributedString() {
-                    Text(AttributedString(nsAttributedString))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 16)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    Text("Error rendering markdown")
-                        .foregroundColor(.red)
-                        .padding()
+            Divider()
+            
+            // Content area
+            if isEditing {
+                TextEditor(text: Binding(
+                    get: { content },
+                    set: { newValue in
+                        content = newValue
+                        hasUnsavedChanges = true
+                    }
+                ))
+                .font(.system(size: 14, design: .monospaced))
+                .padding(12)
+                .frame(width: 450, height: 400)
+            } else {
+                ScrollView {
+                    if let nsAttributedString = createStyledAttributedString() {
+                        Text(AttributedString(nsAttributedString))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text("Error rendering markdown")
+                            .foregroundColor(.red)
+                            .padding()
+                    }
                 }
+                .frame(width: 450, height: 400)
             }
-            .frame(width: 450, height: 400)
-            .background(.ultraThinMaterial)
+            
+            if let error = saveError {
+                Text(error)
+                    .foregroundColor(.red)
+                    .font(.caption)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+            }
         }
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -133,6 +192,17 @@ struct MarkdownPreviewView: View {
             content = content.replacingOccurrences(of: "\r\n", with: "\n")
         } catch {
             content = "Error loading content: \(error.localizedDescription)"
+        }
+    }
+    
+    private func saveContent() {
+        let fileURL = URL(fileURLWithPath: file.path)
+        do {
+            try content.write(to: fileURL, atomically: true, encoding: .utf8)
+            hasUnsavedChanges = false
+            saveError = nil
+        } catch {
+            saveError = "Failed to save: \(error.localizedDescription)"
         }
     }
 }
