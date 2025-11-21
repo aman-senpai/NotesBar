@@ -492,7 +492,7 @@ struct AboutView: View {
             Text("Obsidian Quick Note")
                 .font(.title)
             
-            Text("Version 1.0")
+            Text("Version 0.3")
                 .foregroundColor(.secondary)
             
             Text("A quick way to access your Obsidian notes")
