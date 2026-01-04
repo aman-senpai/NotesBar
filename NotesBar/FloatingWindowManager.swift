@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import WebKit
 
 /// Manages floating note windows that persist independently of the menu bar popover
 class FloatingWindowManager: ObservableObject {
@@ -157,18 +158,9 @@ struct FloatingNoteView: View {
                 .font(.system(size: 14, design: .monospaced))
                 .padding(12)
             } else {
-                ScrollView {
-                    if let nsAttributedString = MarkdownStyler.createStyledAttributedString(from: content) {
-                        Text(AttributedString(nsAttributedString))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 16)
-                    } else {
-                        Text(content)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding()
-                    }
+                MarkdownWebView(content: content, filePath: file.path) { newContent in
+                    content = newContent
+                    lastSavedContent = newContent
                 }
             }
 
