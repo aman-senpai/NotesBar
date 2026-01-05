@@ -50,8 +50,8 @@ class FloatingWindowManager: ObservableObject {
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 300, height: 200)
 
-        // Make window float above others but not always on top
-        window.level = .floating
+        // Normal window level (not always on top)
+        window.level = .normal
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         // Set up close handler
