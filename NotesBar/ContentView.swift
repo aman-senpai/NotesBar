@@ -452,6 +452,37 @@ struct FileRow: View {
                         }
                     }
                 }
+        }
+    }
+    
+    private func openNote(_ note: NoteFile) {
+        let vaultPath = UserDefaults.standard.string(forKey: "vaultPath") ?? ""
+        let vaultName = (vaultPath as NSString).lastPathComponent
+        noteViewModel.openNote(note, vaultName: vaultName)
+    }
+}
+
+struct AboutView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 60))
+                .foregroundColor(.blue)
+            
+            Text("Obsidian Quick Note")
+                .font(.title)
+            
+            Text("Version 0.3")
+                .foregroundColor(.secondary)
+            
+            Text("A quick way to access your Obsidian notes")
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            Button("Close") {
+                dismiss()
             }
         }
     }
