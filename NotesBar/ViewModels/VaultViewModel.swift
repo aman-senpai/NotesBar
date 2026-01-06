@@ -34,7 +34,7 @@ class VaultViewModel: ObservableObject {
         }
         
         // Start accessing the new vault
-        let newURL = URL(fileURLWithPath: vault.path)
+        _ = URL(fileURLWithPath: vault.path)
         if let bookmarkData = vault.bookmarkData {
             do {
                 var isStale = false
