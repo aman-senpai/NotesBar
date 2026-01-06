@@ -1,225 +1,143 @@
 import SwiftUI
 import AppKit
-import Down
+import WebKit
 
 struct MarkdownPreviewView: View {
     let file: NoteFile
+    var onTap: (() -> Void)? = nil
     @State private var content: String = ""
-    @State private var isHovered = false
-    @State private var isEditing = false
-    @State private var saveError: String?
-    @State private var lastSavedContent: String = ""
-    @State private var autoSaveTask: Task<Void, Never>?
-    
-    private func createStyledAttributedString() -> NSAttributedString? {
-        guard let attributedString = try? Down(markdownString: content).toAttributedString() else {
-            return nil
-        }
-        
-        let mutableString = NSMutableAttributedString(attributedString: attributedString)
-        let fullRange = NSRange(location: 0, length: mutableString.length)
-        
-        // Apply base paragraph style
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.lineSpacing = 6
-        paragraphStyle.paragraphSpacing = 8
-        mutableString.addAttribute(.paragraphStyle, value: paragraphStyle, range: fullRange)
-        
-        // Apply base font
-        mutableString.addAttribute(.font, value: NSFont.systemFont(ofSize: 14), range: fullRange)
-        
-        // Find and style headings
-        let headingPatterns = [
-            ("^# (.+)$", NSFont.systemFont(ofSize: 24, weight: .bold)),
-            ("^## (.+)$", NSFont.systemFont(ofSize: 20, weight: .bold)),
-            ("^### (.+)$", NSFont.systemFont(ofSize: 18, weight: .semibold)),
-            ("^#### (.+)$", NSFont.systemFont(ofSize: 16, weight: .semibold)),
-            ("^##### (.+)$", NSFont.systemFont(ofSize: 14, weight: .semibold)),
-            ("^###### (.+)$", NSFont.systemFont(ofSize: 14, weight: .semibold))
-        ]
-        
-        for (pattern, font) in headingPatterns {
-            if let regex = try? NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines]) {
-                let matches = regex.matches(in: content, options: [], range: NSRange(location: 0, length: content.utf16.count))
-                for match in matches {
-                    guard match.numberOfRanges > 1 else { continue }
-                    let range = match.range(at: 1)
-                    guard range.location != NSNotFound && range.length > 0 else { continue }
-                    
-                    // Ensure the range is within bounds
-                    let safeRange = NSRange(
-                        location: min(range.location, mutableString.length),
-                        length: min(range.length, mutableString.length - range.location)
-                    )
-                    
-                    if safeRange.length > 0 {
-                        mutableString.addAttribute(.font, value: font, range: safeRange)
-                        
-                        let headingStyle = NSMutableParagraphStyle()
-                        headingStyle.lineSpacing = 6
-                        headingStyle.paragraphSpacing = 8
-                        mutableString.addAttribute(.paragraphStyle, value: headingStyle, range: safeRange)
-                    }
-                }
-            }
-        }
-        
-        // Style code blocks
-        if let codeRegex = try? NSRegularExpression(pattern: "```[\\s\\S]+?```", options: []) {
-            let matches = codeRegex.matches(in: content, options: [], range: NSRange(location: 0, length: content.utf16.count))
-            for match in matches {
-                let range = match.range
-                guard range.location != NSNotFound && range.length > 0 else { continue }
-                
-                // Ensure the range is within bounds
-                let safeRange = NSRange(
-                    location: min(range.location, mutableString.length),
-                    length: min(range.length, mutableString.length - range.location)
-                )
-                
-                if safeRange.length > 0 {
-                    mutableString.addAttribute(.font, value: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular), range: safeRange)
-                    mutableString.addAttribute(.backgroundColor, value: NSColor.textBackgroundColor.withAlphaComponent(0.1), range: safeRange)
-                }
-            }
-        }
-        
-        return mutableString
-    }
-    
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header with file name and controls
+            // Header with file name
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(file.name)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
-                    if content != lastSavedContent {
-                        HStack(spacing: 4) {
-                            ProgressView()
-                                .scaleEffect(0.5)
-                                .frame(width: 12, height: 12)
-                            Text("Saving...")
-                                .font(.system(size: 11))
-                                .foregroundColor(.blue)
-                        }
-                    }
-                }
-                
+                Text(file.name.replacingOccurrences(of: ".md", with: ""))
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.primary)
                 Spacer()
-                
-                HStack(spacing: 8) {
-                    if isEditing {
-                        Button(action: { isEditing = false }) {
-                            Image(systemName: "eye")
-                                .foregroundColor(.blue)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .help("Preview")
-                    }
-                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(.ultraThinMaterial)
-            
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onTap?()
+            }
+
             Divider()
-            
-            // Content area
-            if isEditing {
-                TextEditor(text: Binding(
-                    get: { content },
-                    set: { newValue in
-                        content = newValue
-                        scheduleAutoSave()
-                    }
-                ))
-                .font(.system(size: 14, design: .monospaced))
-                .padding(12)
+
+            // Content area - WebKit preview
+            MarkdownWebView(content: content, filePath: file.path)
                 .frame(width: 450, height: 400)
-            } else {
-                ScrollView {
-                    if let nsAttributedString = createStyledAttributedString() {
-                        Text(AttributedString(nsAttributedString))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 16)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        Text("Error rendering markdown")
-                            .foregroundColor(.red)
-                            .padding()
-                    }
-                }
-                .frame(width: 450, height: 400)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    isEditing = true
-                }
-            }
-            
-            if let error = saveError {
-                Text(error)
-                    .foregroundColor(.red)
-                    .font(.caption)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
-            }
         }
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(radius: 8)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onTap?()
+        }
         .onAppear {
             loadContent()
         }
-        .onDisappear {
-            autoSaveTask?.cancel()
-        }
-        .onHover { hovering in
-            isHovered = hovering
-        }
     }
-    
+
     private func loadContent() {
         let fileURL = URL(fileURLWithPath: file.path)
         do {
             content = try String(contentsOf: fileURL, encoding: .utf8)
-            // Ensure proper line endings
             content = content.replacingOccurrences(of: "\r\n", with: "\n")
-            lastSavedContent = content
         } catch {
             content = "Error loading content: \(error.localizedDescription)"
         }
     }
-    
-    private func scheduleAutoSave() {
-        // Cancel any existing save task
-        autoSaveTask?.cancel()
-        
-        // Create a new task that waits 1 second before saving
-        autoSaveTask = Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
-            
-            // Check if task was cancelled
-            guard !Task.isCancelled else { return }
-            
-            // Save on main thread
-            await MainActor.run {
-                saveContent()
-            }
-        }
+}
+
+/// NSViewRepresentable wrapper for WKWebView to render markdown as HTML
+struct MarkdownWebView: NSViewRepresentable {
+    let content: String
+    let filePath: String
+    var onContentChanged: ((String) -> Void)?
+
+    init(content: String, filePath: String, onContentChanged: ((String) -> Void)? = nil) {
+        self.content = content
+        self.filePath = filePath
+        self.onContentChanged = onContentChanged
     }
-    
-    private func saveContent() {
-        let fileURL = URL(fileURLWithPath: file.path)
-        do {
-            try content.write(to: fileURL, atomically: true, encoding: .utf8)
-            lastSavedContent = content
-            saveError = nil
-        } catch {
-            saveError = "Failed to save: \(error.localizedDescription)"
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeNSView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+
+        // Add message handler for checkbox toggles
+        config.userContentController.add(context.coordinator, name: "checkboxToggle")
+
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.setValue(false, forKey: "drawsBackground")
+        return webView
+    }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        context.coordinator.parent = self
+        let html = MarkdownStyler.createStyledHTML(from: content)
+        webView.loadHTMLString(html, baseURL: nil)
+    }
+
+    class Coordinator: NSObject, WKScriptMessageHandler {
+        var parent: MarkdownWebView
+
+        init(_ parent: MarkdownWebView) {
+            self.parent = parent
+        }
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == "checkboxToggle",
+                  let body = message.body as? [String: Any],
+                  let lineNumber = body["line"] as? Int,
+                  let isChecked = body["checked"] as? Bool else {
+                return
+            }
+
+            // Toggle the checkbox in the file
+            toggleCheckboxInFile(at: lineNumber, checked: isChecked)
+        }
+
+        private func toggleCheckboxInFile(at lineNumber: Int, checked: Bool) {
+            let fileURL = URL(fileURLWithPath: parent.filePath)
+
+            guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else {
+                return
+            }
+
+            var lines = content.components(separatedBy: "\n")
+
+            guard lineNumber < lines.count else { return }
+
+            let line = lines[lineNumber]
+
+            // Replace checkbox state
+            var newLine = line
+            if checked {
+                // Change [ ] to [x]
+                newLine = line.replacingOccurrences(of: "[ ]", with: "[x]")
+            } else {
+                // Change [x] or [X] to [ ]
+                newLine = line.replacingOccurrences(of: "[x]", with: "[ ]")
+                newLine = newLine.replacingOccurrences(of: "[X]", with: "[ ]")
+            }
+
+            lines[lineNumber] = newLine
+            let newContent = lines.joined(separator: "\n")
+
+            // Save the file
+            try? newContent.write(to: fileURL, atomically: true, encoding: .utf8)
+
+            // Notify parent of content change
+            parent.onContentChanged?(newContent)
         }
     }
 }
@@ -232,4 +150,4 @@ struct MarkdownPreviewView: View {
         isDirectory: false,
         children: nil
     ))
-} 
+}

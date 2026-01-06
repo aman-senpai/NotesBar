@@ -28,10 +28,8 @@ struct NoteFile: Identifiable, Hashable {
 
 struct ContentView: View {
     @EnvironmentObject private var vaultViewModel: VaultViewModel
-    @State private var showVaultPicker = false
     @State private var vaultFiles: [NoteFile] = []
     @State private var searchText = ""
-    @State private var showAbout = false
     @State private var expandedFolders: Set<String> = []
     
     private func openOrCreateTodayNote() {
@@ -118,18 +116,6 @@ struct ContentView: View {
                     )
                     
                     ActionButton(
-                        icon: "arrow.clockwise",
-                        action: { loadVaultContents() },
-                        tooltip: "Refresh Notes"
-                    )
-                    
-                    ActionButton(
-                        icon: "info.circle",
-                        action: { showAbout = true },
-                        tooltip: "About"
-                    )
-                    
-                    ActionButton(
                         icon: "xmark.circle",
                         action: { NSApplication.shared.terminate(nil) },
                         tooltip: "Quit"
@@ -193,9 +179,6 @@ struct ContentView: View {
                 loadVaultContents()
             }
         }
-        .sheet(isPresented: $showAbout) {
-            AboutView()
-        }
     }
     
     private var filteredFiles: [NoteFile] {
@@ -210,18 +193,29 @@ struct ContentView: View {
                 }
             }
         }
-        
+
+        // Flatten all files recursively for search
+        func flattenFiles(_ files: [NoteFile]) -> [NoteFile] {
+            var result: [NoteFile] = []
+            for file in files {
+                if file.isDirectory {
+                    if let children = file.children {
+                        result.append(contentsOf: flattenFiles(children))
+                    }
+                } else {
+                    result.append(file)
+                }
+            }
+            return result
+        }
+
+        let allFiles = flattenFiles(vaultFiles)
         let searchTerms = searchText.lowercased().split(separator: " ")
-        return vaultFiles.filter { file in
+
+        return allFiles.filter { file in
             file.name.lowercased().containsAll(searchTerms)
         }.sorted { item1, item2 in
-            if item1.isDirectory && !item2.isDirectory {
-                return true
-            } else if !item1.isDirectory && item2.isDirectory {
-                return false
-            } else {
-                return item1.name.localizedCaseInsensitiveCompare(item2.name) == .orderedAscending
-            }
+            item1.name.localizedCaseInsensitiveCompare(item2.name) == .orderedAscending
         }
     }
     
@@ -369,21 +363,8 @@ struct CollapsibleFolderView: View {
     private func openFolder(_ folder: NoteFile) {
         let vaultPath = UserDefaults.standard.string(forKey: "vaultPath") ?? ""
         let vaultName = (vaultPath as NSString).lastPathComponent
-        
-        var relativePath = folder.relativePath
-        if !relativePath.hasPrefix("/") {
-            relativePath = "/" + relativePath
-        }
-        
-        if relativePath.hasPrefix("/") {
-            relativePath = String(relativePath.dropFirst())
-        }
-        
-        let encodedPath = relativePath
-            .components(separatedBy: "/")
-            .map { $0.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0 }
-            .joined(separator: "%2F")
-        
+        let encodedPath = folder.relativePath.encodedForObsidianURL()
+
         if let encodedVaultName = vaultName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
             let urlString = "obsidian://open?vault=\(encodedVaultName)&file=\(encodedPath)"
             if let url = URL(string: urlString) {
@@ -391,7 +372,7 @@ struct CollapsibleFolderView: View {
                 return
             }
         }
-        
+
         let folderURL = URL(fileURLWithPath: folder.path)
         let obsidianURL = URL(fileURLWithPath: "/Applications/Obsidian.app")
         let config = NSWorkspace.OpenConfiguration()
@@ -411,32 +392,32 @@ struct FileRow: View {
     @State private var isPreviewHovered = false
     @State private var hideWorkItem: DispatchWorkItem?
     @State private var mouseExitTime: Date?
-    @EnvironmentObject private var noteViewModel: NoteViewModel
-    
+
     var body: some View {
-        Button(action: {
-            openNote(file)
-        }) {
-            HStack {
-                Image(systemName: "doc.text.fill")
-                    .foregroundColor(.white)
-                Text(file.name.replacingOccurrences(of: ".md", with: ""))
-                    .foregroundColor(.white)
-                Spacer()
-            }
-            .padding(.vertical, 4)
-            .padding(.horizontal, 8)
-            .background(isHovered ? Color.white.opacity(0.1) : Color.clear)
-            .cornerRadius(6)
+        HStack {
+            Image(systemName: "doc.text.fill")
+                .foregroundColor(.white)
+            Text(file.name.replacingOccurrences(of: ".md", with: ""))
+                .foregroundColor(.white)
+            Spacer()
         }
-        .buttonStyle(PlainButtonStyle())
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(isHovered ? Color.white.opacity(0.1) : Color.clear)
+        .cornerRadius(6)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Click opens floating window
+            showPreview = false
+            FloatingWindowManager.shared.openFloatingWindow(for: file)
+        }
         .onHover { hovering in
             isHovered = hovering
-            
+
             // Cancel any pending hide work
             hideWorkItem?.cancel()
             hideWorkItem = nil
-            
+
             if hovering {
                 mouseExitTime = nil
                 showPreview = true
@@ -452,21 +433,22 @@ struct FileRow: View {
                     }
                 }
                 hideWorkItem = workItem
-                
+
                 // Schedule the work item with a delay
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
             }
         }
         .popover(isPresented: $showPreview, arrowEdge: .trailing) {
-            MarkdownPreviewView(file: file)
-                .onHover { hovering in
-                    isPreviewHovered = hovering
-                    if !hovering && !isHovered {
-                        // Add slight delay before hiding
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                            if !self.isHovered && !self.isPreviewHovered {
-                                self.showPreview = false
-                            }
+            MarkdownPreviewView(file: file) {
+                showPreview = false
+                FloatingWindowManager.shared.openFloatingWindow(for: file)
+            }
+            .onHover { hovering in
+                isPreviewHovered = hovering
+                if !hovering && !isHovered {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        if !self.isHovered && !self.isPreviewHovered {
+                            self.showPreview = false
                         }
                     }
                 }
@@ -502,12 +484,9 @@ struct AboutView: View {
             Button("Close") {
                 dismiss()
             }
-            .buttonStyle(.borderedProminent)
-            .padding(.top)
         }
-        .padding()
-        .frame(width: 300, height: 300)
     }
+
 }
 
 // MARK: - String Extension
@@ -517,6 +496,18 @@ extension String {
             self.contains(substring)
         }
     }
+
+    /// Encodes a file path for use in Obsidian URLs
+    func encodedForObsidianURL() -> String {
+        var path = self
+        if path.hasPrefix("/") {
+            path = String(path.dropFirst())
+        }
+        return path
+            .components(separatedBy: "/")
+            .map { $0.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0 }
+            .joined(separator: "%2F")
+    }
 }
 
 // MARK: - Action Button Component
@@ -525,7 +516,9 @@ struct ActionButton: View {
     let action: () -> Void
     let tooltip: String
     @State private var isHovered = false
-    
+    @State private var showTooltip = false
+    @State private var hoverTask: Task<Void, Never>?
+
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
@@ -535,9 +528,33 @@ struct ActionButton: View {
                 .clipShape(Circle())
         }
         .buttonStyle(PlainButtonStyle())
-        .help(tooltip)
+        .overlay(alignment: .bottom) {
+            if showTooltip {
+                Text(tooltip)
+                    .font(.system(size: 11))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.black.opacity(0.8))
+                    .cornerRadius(4)
+                    .offset(y: 28)
+                    .fixedSize()
+            }
+        }
         .onHover { hovering in
             isHovered = hovering
+            hoverTask?.cancel()
+
+            if hovering {
+                hoverTask = Task {
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s delay
+                    if !Task.isCancelled {
+                        await MainActor.run { showTooltip = true }
+                    }
+                }
+            } else {
+                showTooltip = false
+            }
         }
     }
 }
