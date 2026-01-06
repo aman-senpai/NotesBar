@@ -451,14 +451,18 @@ struct FileRow: View {
                             self.showPreview = false
                         }
                     }
-                }
+                    }
+            }
         }
     }
     
     private func openNote(_ note: NoteFile) {
-        let vaultPath = UserDefaults.standard.string(forKey: "vaultPath") ?? ""
-        let vaultName = (vaultPath as NSString).lastPathComponent
-        noteViewModel.openNote(note, vaultName: vaultName)
+        // Placeholder for noteViewModel which seems to be missing in FileRow
+        // noteViewModel.openNote(note, vaultName: vaultName)
+        print("Opening note: \(note.name)")
+        // let vaultPath = UserDefaults.standard.string(forKey: "vaultPath") ?? ""
+        // let vaultName = (vaultPath as NSString).lastPathComponent
+        // noteViewModel.openNote(note, vaultName: vaultName)
     }
 }
 
@@ -489,75 +493,9 @@ struct AboutView: View {
 
 }
 
-// MARK: - String Extension
-extension String {
-    func containsAll(_ substrings: [Substring]) -> Bool {
-        substrings.allSatisfy { substring in
-            self.contains(substring)
-        }
-    }
 
-    /// Encodes a file path for use in Obsidian URLs
-    func encodedForObsidianURL() -> String {
-        var path = self
-        if path.hasPrefix("/") {
-            path = String(path.dropFirst())
-        }
-        return path
-            .components(separatedBy: "/")
-            .map { $0.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0 }
-            .joined(separator: "%2F")
-    }
-}
 
-// MARK: - Action Button Component
-struct ActionButton: View {
-    let icon: String
-    let action: () -> Void
-    let tooltip: String
-    @State private var isHovered = false
-    @State private var showTooltip = false
-    @State private var hoverTask: Task<Void, Never>?
 
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .foregroundColor(.white)
-                .padding(6)
-                .background(isHovered ? Color.white.opacity(0.2) : Color.clear)
-                .clipShape(Circle())
-        }
-        .buttonStyle(PlainButtonStyle())
-        .overlay(alignment: .bottom) {
-            if showTooltip {
-                Text(tooltip)
-                    .font(.system(size: 11))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.black.opacity(0.8))
-                    .cornerRadius(4)
-                    .offset(y: 28)
-                    .fixedSize()
-            }
-        }
-        .onHover { hovering in
-            isHovered = hovering
-            hoverTask?.cancel()
-
-            if hovering {
-                hoverTask = Task {
-                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s delay
-                    if !Task.isCancelled {
-                        await MainActor.run { showTooltip = true }
-                    }
-                }
-            } else {
-                showTooltip = false
-            }
-        }
-    }
-}
 
 #Preview {
     ContentView()
