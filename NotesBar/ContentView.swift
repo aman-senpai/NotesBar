@@ -28,9 +28,11 @@ struct NoteFile: Identifiable, Hashable {
 
 struct ContentView: View {
     @EnvironmentObject private var vaultViewModel: VaultViewModel
+    @StateObject private var graphViewModel = GraphViewModel()
     @State private var vaultFiles: [NoteFile] = []
     @State private var searchText = ""
     @State private var expandedFolders: Set<String> = []
+    @State private var showGraph = false
     
     private func openOrCreateTodayNote() {
         // Use Obsidian's daily note interface with the simple URI scheme
@@ -102,9 +104,20 @@ struct ContentView: View {
                 Spacer()
                 
                 // Action Buttons
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     ActionButton(
-                        icon: "plus.circle",
+                        icon: "circle.hexagongrid.fill",
+                        action: { 
+                            if let vault = vaultViewModel.currentVault {
+                                graphViewModel.updateVaultPath(vault.path)
+                                FloatingWindowManager.shared.openGraphWindow(viewModel: graphViewModel)
+                            }
+                        },
+                        tooltip: "Graph View"
+                    )
+
+                    ActionButton(
+                        icon: "plus",
                         action: { createNewNote() },
                         tooltip: "New Note"
                     )
@@ -116,38 +129,40 @@ struct ContentView: View {
                     )
                     
                     ActionButton(
-                        icon: "xmark.circle",
+                        icon: "power",
                         action: { NSApplication.shared.terminate(nil) },
                         tooltip: "Quit"
                     )
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             .background(.ultraThinMaterial)
             
             // Search Bar
             HStack {
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(.white.opacity(0.5))
+                    .font(.system(size: 13, weight: .medium))
                 TextField("Search notes...", text: $searchText)
                     .textFieldStyle(PlainTextFieldStyle())
                     .foregroundColor(.white)
+                    .font(.system(size: 13))
                 if !searchText.isEmpty {
                     Button(action: { searchText = "" }) {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(.white.opacity(0.5))
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color.white.opacity(0.1))
-            .cornerRadius(8)
-            .padding(.horizontal)
-            .padding(.top, 2)
-            .padding(.bottom, 4)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(Color.white.opacity(0.08))
+            .cornerRadius(10)
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 8)
             
             // File List
             ScrollView {
@@ -231,8 +246,8 @@ struct ContentView: View {
                 return contents.compactMap { url -> NoteFile? in
                     let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
                     
-                    // Skip directories starting with a dot
-                    if isDirectory && url.lastPathComponent.hasPrefix(".") {
+                    // Skip any file or directory starting with a dot
+                    if url.lastPathComponent.hasPrefix(".") {
                         return nil
                     }
                     
@@ -250,6 +265,8 @@ struct ContentView: View {
                             children: children
                         )
                     } else {
+                        // Also skip common non-markdown hidden files if needed, 
+                        // but sticking to prefix check as requested.
                         return NoteFile(
                             name: url.lastPathComponent,
                             path: url.path,
@@ -386,62 +403,86 @@ struct CollapsibleFolderView: View {
 }
 
 struct FileRow: View {
+    @EnvironmentObject private var vaultViewModel: VaultViewModel
     let file: NoteFile
     @State private var isHovered = false
     @State private var showPreview = false
     @State private var isPreviewHovered = false
+    @State private var showWorkItem: DispatchWorkItem?
     @State private var hideWorkItem: DispatchWorkItem?
-    @State private var mouseExitTime: Date?
 
     var body: some View {
-        HStack {
-            Image(systemName: "doc.text.fill")
-                .foregroundColor(.white)
-            Text(file.name.replacingOccurrences(of: ".md", with: ""))
-                .foregroundColor(.white)
+        HStack(spacing: 8) {
+            let ext = (file.name as NSString).pathExtension.lowercased()
+            let icon: String = {
+                switch ext {
+                case "canvas": return "square.grid.2x2"
+                case "excalidraw": return "scribble.variable"
+                default: return "doc.text"
+                }
+            }()
+            
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundColor(.white.opacity(0.7))
+                
+            let displayName = file.name
+                .replacingOccurrences(of: ".md", with: "")
+                .replacingOccurrences(of: ".canvas", with: "")
+                .replacingOccurrences(of: ".excalidraw", with: "")
+                
+            Text(displayName)
+                .font(.system(size: 13))
+                .foregroundColor(.white.opacity(0.9))
             Spacer()
         }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
-        .background(isHovered ? Color.white.opacity(0.1) : Color.clear)
-        .cornerRadius(6)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .background(isHovered ? Color.white.opacity(0.12) : Color.clear)
+        .cornerRadius(8)
         .contentShape(Rectangle())
         .onTapGesture {
-            // Click opens floating window
+            // Cancel any pending work and close preview
+            showWorkItem?.cancel()
+            showWorkItem = nil
+            hideWorkItem?.cancel()
+            hideWorkItem = nil
             showPreview = false
-            FloatingWindowManager.shared.openFloatingWindow(for: file)
+            FloatingWindowManager.shared.openFloatingWindow(for: file, vaultViewModel: vaultViewModel)
         }
         .onHover { hovering in
             isHovered = hovering
 
-            // Cancel any pending hide work
+            // Cancel both pending show and hide on every state change
+            showWorkItem?.cancel()
+            showWorkItem = nil
             hideWorkItem?.cancel()
             hideWorkItem = nil
 
             if hovering {
-                mouseExitTime = nil
-                showPreview = true
-            } else {
-                let currentExitTime = Date()
-                mouseExitTime = currentExitTime
-                // Create a new work item for hiding the preview
-                let workItem = DispatchWorkItem {
-                    if !self.isHovered && !self.isPreviewHovered {
-                        if let exitTime = self.mouseExitTime, exitTime == currentExitTime {
-                            self.showPreview = false
-                        }
+                // Debounce show: only open popover after cursor rests for 180ms
+                let work = DispatchWorkItem {
+                    if self.isHovered {
+                        self.showPreview = true
                     }
                 }
-                hideWorkItem = workItem
-
-                // Schedule the work item with a delay
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
+                showWorkItem = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: work)
+            } else {
+                // Debounce hide: allow brief gap when moving to popover
+                let work = DispatchWorkItem {
+                    if !self.isHovered && !self.isPreviewHovered {
+                        self.showPreview = false
+                    }
+                }
+                hideWorkItem = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
             }
         }
         .popover(isPresented: $showPreview, arrowEdge: .trailing) {
             MarkdownPreviewView(file: file) {
                 showPreview = false
-                FloatingWindowManager.shared.openFloatingWindow(for: file)
+                FloatingWindowManager.shared.openFloatingWindow(for: file, vaultViewModel: vaultViewModel)
             }
             .onHover { hovering in
                 isPreviewHovered = hovering

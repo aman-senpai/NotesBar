@@ -11,39 +11,19 @@ struct ActionButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .foregroundColor(.white)
-                .padding(6)
-                .background(isHovered ? Color.white.opacity(0.2) : Color.clear)
-                .clipShape(Circle())
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.white.opacity(isHovered ? 1.0 : 0.8))
+                .padding(8)
+                .frame(width: 32, height: 32)
+                .background(isHovered ? Color.white.opacity(0.15) : Color.white.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .scaleEffect(isHovered ? 1.05 : 1.0)
+                .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isHovered)
         }
         .buttonStyle(PlainButtonStyle())
-        .overlay(alignment: .bottom) {
-            if showTooltip {
-                Text(tooltip)
-                    .font(.system(size: 11))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.black.opacity(0.8))
-                    .cornerRadius(4)
-                    .offset(y: 28)
-                    .fixedSize()
-            }
-        }
+        .help(tooltip)
         .onHover { hovering in
             isHovered = hovering
-            hoverTask?.cancel()
-
-            if hovering {
-                hoverTask = Task {
-                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s delay
-                    if !Task.isCancelled {
-                        await MainActor.run { showTooltip = true }
-                    }
-                }
-            } else {
-                showTooltip = false
-            }
         }
     }
 }

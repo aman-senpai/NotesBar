@@ -10,16 +10,100 @@ import Down
 
 /// Utility for creating styled HTML from markdown content
 enum MarkdownStyler {
-    /// Creates HTML string from markdown content with styling for dark/light mode
-    static func createStyledHTML(from content: String) -> String {
-        // Pre-process GFM extensions since cmark doesn't support them
+    static func createStyledHTML(from content: String, theme: String = "system") -> String {
+        // Pre-process extensions
         var processedContent = preprocessGFMTables(content)
         processedContent = preprocessTaskLists(processedContent)
+        // processedContent = preprocessMermaid(processedContent) // Moving to post-process
+        processedContent = preprocessMath(processedContent)
+        processedContent = preprocessWikilinks(processedContent)
 
         let down = Down(markdownString: processedContent)
-        let html = (try? down.toHTML([.smart, .unsafe])) ?? ""
+        var html = (try? down.toHTML([.smart, .unsafe])) ?? ""
+        
+        // Post-process HTML for Mermaid and other enhancements
+        html = postprocessHTML(html)
 
-        return wrapInHTMLTemplate(html)
+        return wrapInHTMLTemplate(html, theme: theme)
+    }
+
+    /// Converts [[Wikilinks]] or [[Wikilinks|Alias]] to HTML anchors
+    private static func preprocessWikilinks(_ content: String) -> String {
+        var result = content
+        // Match [[Path/To/Note]] or [[Path/To/Note|Display Text]]
+        // Pattern: [[ (any char except ] or |) (optionally | followed by display text) ]]
+        let pattern = "\\[\\[([^\\]|]+)(?:\\|([^\\]]+))?\\]\\]"
+        let regex = try? NSRegularExpression(pattern: pattern, options: [])
+        
+        let nsString = content as NSString
+        let matches = regex?.matches(in: content, options: [], range: NSRange(location: 0, length: nsString.length)) ?? []
+        
+        for match in matches.reversed() {
+            let path = nsString.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespaces)
+            let display: String
+            if match.range(at: 2).location != NSNotFound {
+                display = nsString.substring(with: match.range(at: 2)).trimmingCharacters(in: .whitespaces)
+            } else {
+                display = path
+            }
+            
+            // Encode the path for use in a URL, but keep it identifiable for our resolver
+            let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
+            let html = "<a href=\"wikilink:\(encodedPath)\">\(display)</a>"
+            
+            result = (result as NSString).replacingCharacters(in: match.range, with: html) as String
+        }
+        
+        return result
+    }
+
+    /// Detects mermaid code blocks and wraps them in a div for mermaid.js
+    private static func preprocessMermaid(_ content: String) -> String {
+        var result = content
+        let pattern = "```mermaid\\n([\\s\\S]*?)\\n```"
+        let regex = try? NSRegularExpression(pattern: pattern, options: [])
+        
+        let nsString = content as NSString
+        let matches = regex?.matches(in: content, options: [], range: NSRange(location: 0, length: nsString.length)) ?? []
+        
+        // Reverse order to not mess up indices
+        for match in matches.reversed() {
+            let code = nsString.substring(with: match.range(at: 1))
+            let html = "<div class=\"mermaid\">\(code)</div>"
+            result = (result as NSString).replacingCharacters(in: match.range, with: html) as String
+        }
+        
+        return result
+    }
+
+    /// Detects math blocks and wraps them for KaTeX
+    private static func preprocessMath(_ content: String) -> String {
+        var result = content
+        
+        // Block math: $$ ... $$
+        let blockPattern = "\\$\\$([\\s\\S]*?)\\$\\$"
+        let blockRegex = try? NSRegularExpression(pattern: blockPattern, options: [])
+        let blockMatches = blockRegex?.matches(in: result, options: [], range: NSRange(location: 0, length: (result as NSString).length)) ?? []
+        
+        for match in blockMatches.reversed() {
+            let math = (result as NSString).substring(with: match.range(at: 1))
+            let html = "<div class=\"math-block\">$$\(math)$$</div>"
+            result = (result as NSString).replacingCharacters(in: match.range, with: html) as String
+        }
+        
+        // Inline math: $ ... $
+        // Be careful not to match literal dollar signs - usually requires whitespace before or after
+        let inlinePattern = "(?<!\\\\)\\$([^$\\n]+?)\\$"
+        let inlineRegex = try? NSRegularExpression(pattern: inlinePattern, options: [])
+        let inlineMatches = inlineRegex?.matches(in: result, options: [], range: NSRange(location: 0, length: (result as NSString).length)) ?? []
+        
+        for match in inlineMatches.reversed() {
+            let math = (result as NSString).substring(with: match.range(at: 1))
+            let html = "<span class=\"math-inline\">$\(math)$</span>"
+            result = (result as NSString).replacingCharacters(in: match.range, with: html) as String
+        }
+        
+        return result
     }
 
     /// Converts GFM-style task lists to HTML checkboxes
@@ -159,6 +243,36 @@ enum MarkdownStyler {
         return trimmed.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
     }
 
+    /// Post-processes the final HTML to handle Mermaid blocks and other dynamic elements
+    private static func postprocessHTML(_ html: String) -> String {
+        var result = html
+        
+        // Find Mermaid code blocks like <pre><code class="language-mermaid">...</code></pre>
+        let pattern = "<pre><code class=\"language-mermaid\">([\\s\\S]*?)</code></pre>"
+        let regex = try? NSRegularExpression(pattern: pattern, options: [])
+        
+        let nsString = result as NSString
+        let matches = regex?.matches(in: result, options: [], range: NSRange(location: 0, length: nsString.length)) ?? []
+        
+        for match in matches.reversed() {
+            let escapedCode = nsString.substring(with: match.range(at: 1))
+            
+            // Unescape HTML entities so Mermaid gets the raw syntax
+            let unescaped = escapedCode
+                .replacingOccurrences(of: "&amp;", with: "&")
+                .replacingOccurrences(of: "&lt;", with: "<")
+                .replacingOccurrences(of: "&gt;", with: ">")
+                .replacingOccurrences(of: "&quot;", with: "\"")
+                .replacingOccurrences(of: "&#39;", with: "'")
+                .replacingOccurrences(of: "–", with: "--") // Fix Down's smart dash replacement
+            
+            let mermaidDiv = "<pre class=\"mermaid\">\(unescaped)</pre>"
+            result = (result as NSString).replacingCharacters(in: match.range, with: mermaidDiv) as String
+        }
+        
+        return result
+    }
+
     /// Escapes HTML special characters
     private static func escapeHTML(_ text: String) -> String {
         var result = text
@@ -169,37 +283,37 @@ enum MarkdownStyler {
     }
 
     /// Wraps HTML content in a full HTML document with styling
-    private static func wrapInHTMLTemplate(_ bodyContent: String) -> String {
+    private static func wrapInHTMLTemplate(_ bodyContent: String, theme: String = "system") -> String {
+        let themeClass = theme == "system" ? "" : "theme-\(theme)"
+        
         return """
         <!DOCTYPE html>
-        <html>
+        <html class="\(themeClass)">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <script src="\(JSAssets.mermaidScript)"></script>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+            <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+            <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body);"></script>
             <style>
                 :root {
-                    color-scheme: light dark;
+                    --bg-color: transparent;
+                    --header-bg: rgba(255, 255, 255, 0.05);
                 }
 
-                body {
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                    font-size: 14px;
-                    line-height: 1.6;
-                    color: var(--text-color);
-                    background-color: transparent;
-                    padding: 16px 20px;
-                    margin: 0;
-                }
-
+                /* Default: System */
                 @media (prefers-color-scheme: dark) {
                     :root {
-                        --text-color: #f0f0f0;
+                        --text-color: #e0e0e0;
                         --heading-color: #ffffff;
-                        --link-color: #6cb6ff;
-                        --code-bg: rgba(255, 255, 255, 0.1);
-                        --border-color: rgba(255, 255, 255, 0.2);
+                        --link-color: #58a6ff;
+                        --code-bg: rgba(255, 255, 255, 0.08);
+                        --code-text: #f0f0f0;
+                        --border-color: rgba(255, 255, 255, 0.15);
+                        --quote-bg: rgba(255, 255, 255, 0.03);
                         --table-header-bg: rgba(255, 255, 255, 0.1);
-                        --table-row-alt: rgba(255, 255, 255, 0.05);
+                        --table-row-alt: rgba(255, 255, 255, 0.04);
                     }
                 }
 
@@ -209,129 +323,165 @@ enum MarkdownStyler {
                         --heading-color: #000000;
                         --link-color: #0066cc;
                         --code-bg: rgba(0, 0, 0, 0.05);
-                        --border-color: rgba(0, 0, 0, 0.15);
+                        --code-text: #1d1d1f;
+                        --border-color: rgba(0, 0, 0, 0.1);
+                        --quote-bg: rgba(0, 0, 0, 0.02);
                         --table-header-bg: rgba(0, 0, 0, 0.05);
                         --table-row-alt: rgba(0, 0, 0, 0.02);
                     }
                 }
 
+                /* Explicit Light Mode Override */
+                html.theme-light {
+                    --text-color: #1d1d1f;
+                    --heading-color: #000000;
+                    --link-color: #0066cc;
+                    --code-bg: rgba(0, 0, 0, 0.05);
+                    --code-text: #1d1d1f;
+                    --border-color: rgba(0, 0, 0, 0.1);
+                    --quote-bg: rgba(0, 0, 0, 0.02);
+                    --table-header-bg: rgba(0, 0, 0, 0.05);
+                    --table-row-alt: rgba(0, 0, 0, 0.02);
+                }
+
+                /* Explicit Dark Mode Override */
+                html.theme-dark {
+                    --text-color: #e0e0e0;
+                    --heading-color: #ffffff;
+                    --link-color: #58a6ff;
+                    --code-bg: rgba(255, 255, 255, 0.08);
+                    --code-text: #f0f0f0;
+                    --border-color: rgba(255, 255, 255, 0.15);
+                    --quote-bg: rgba(255, 255, 255, 0.03);
+                    --table-header-bg: rgba(255, 255, 255, 0.1);
+                    --table-row-alt: rgba(255, 255, 255, 0.04);
+                }
+
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+                    font-size: 15px;
+                    line-height: 1.6;
+                    color: var(--text-color);
+                    background-color: var(--bg-color);
+                    padding: 24px;
+                    margin: 0;
+                    -webkit-font-smoothing: antialiased;
+                }
+
                 h1, h2, h3, h4, h5, h6 {
                     color: var(--heading-color);
-                    margin-top: 1.2em;
-                    margin-bottom: 0.6em;
+                    margin-top: 1.6em;
+                    margin-bottom: 0.8em;
+                    font-weight: 600;
+                    letter-spacing: -0.01em;
                 }
 
-                h1 { font-size: 24px; font-weight: bold; }
-                h2 { font-size: 20px; font-weight: bold; }
-                h3 { font-size: 18px; font-weight: 600; }
-                h4 { font-size: 16px; font-weight: 600; }
-                h5, h6 { font-size: 14px; font-weight: 600; }
+                h1 { font-size: 28px; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+                h2 { font-size: 22px; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+                h3 { font-size: 19px; }
+                h4 { font-size: 17px; }
 
-                h1:first-child, h2:first-child, h3:first-child {
-                    margin-top: 0;
-                }
+                h1:first-child, h2:first-child, h3:first-child { margin-top: 0; }
 
                 a {
                     color: var(--link-color);
                     text-decoration: none;
+                    transition: color 0.15s ease;
                 }
 
-                a:hover {
-                    text-decoration: underline;
-                }
+                a:hover { text-decoration: underline; }
 
                 code {
-                    font-family: "SF Mono", Menlo, Monaco, monospace;
-                    font-size: 13px;
+                    font-family: "SF Mono", "Menlo", "Monaco", monospace;
+                    font-size: 0.9em;
                     background-color: var(--code-bg);
-                    padding: 2px 6px;
-                    border-radius: 4px;
+                    color: var(--code-text);
+                    padding: 0.2em 0.4em;
+                    border-radius: 6px;
                 }
 
                 pre {
                     background-color: var(--code-bg);
-                    padding: 12px;
-                    border-radius: 6px;
+                    padding: 16px;
+                    border-radius: 12px;
                     overflow-x: auto;
+                    margin: 1.2em 0;
+                    border: 1px solid var(--border-color);
                 }
 
                 pre code {
                     background-color: transparent;
                     padding: 0;
+                    border-radius: 0;
+                    line-height: 1.5;
                 }
 
                 blockquote {
-                    margin: 1em 0;
-                    padding-left: 1em;
-                    border-left: 3px solid var(--border-color);
+                    margin: 1.5em 0;
+                    padding: 0.5em 1.2em;
+                    border-left: 4px solid var(--link-color);
+                    background-color: var(--quote-bg);
+                    border-radius: 0 8px 8px 0;
                     color: var(--text-color);
-                    opacity: 0.8;
                 }
 
                 table {
-                    border-collapse: collapse;
+                    border-collapse: separate;
+                    border-spacing: 0;
                     width: 100%;
-                    margin: 1em 0;
-                    font-size: 13px;
+                    margin: 1.5em 0;
+                    border: 1px solid var(--border-color);
+                    border-radius: 10px;
+                    overflow: hidden;
                 }
 
                 th, td {
-                    border: 1px solid var(--border-color);
-                    padding: 8px 12px;
+                    padding: 12px 16px;
                     text-align: left;
+                    border-bottom: 1px solid var(--border-color);
                 }
 
                 th {
                     background-color: var(--table-header-bg);
                     font-weight: 600;
+                    color: var(--heading-color);
                 }
 
-                tr:nth-child(even) {
-                    background-color: var(--table-row-alt);
-                }
+                tr:last-child td { border-bottom: none; }
 
-                ul, ol {
-                    padding-left: 2em;
-                    margin: 0.5em 0;
-                }
+                tr:nth-child(even) { background-color: var(--table-row-alt); }
 
-                li {
-                    margin: 0.3em 0;
-                }
+                ul, ol { padding-left: 1.8em; margin: 1em 0; }
+                li { margin: 0.4em 0; }
 
                 hr {
                     border: none;
                     border-top: 1px solid var(--border-color);
-                    margin: 1.5em 0;
+                    margin: 2em 0;
                 }
 
                 img {
                     max-width: 100%;
                     height: auto;
-                }
-
-                p {
-                    margin: 0.8em 0;
-                }
-
-                p:first-child {
-                    margin-top: 0;
+                    border-radius: 8px;
+                    margin: 1em 0;
                 }
 
                 /* Task list checkboxes */
                 input[type="checkbox"] {
                     -webkit-appearance: none;
                     appearance: none;
-                    width: 16px;
-                    height: 16px;
-                    border: 2px solid var(--border-color);
-                    border-radius: 3px;
-                    margin-right: 8px;
+                    width: 18px;
+                    height: 18px;
+                    border: 1.5px solid var(--border-color);
+                    border-radius: 5px;
+                    margin-right: 10px;
                     vertical-align: middle;
                     position: relative;
                     top: -1px;
                     cursor: pointer;
                     background-color: transparent;
+                    transition: all 0.2s ease;
                 }
 
                 input[type="checkbox"]:checked {
@@ -342,7 +492,7 @@ enum MarkdownStyler {
                 input[type="checkbox"]:checked::after {
                     content: '✓';
                     color: white;
-                    font-size: 12px;
+                    font-size: 13px;
                     font-weight: bold;
                     position: absolute;
                     top: 50%;
@@ -350,20 +500,34 @@ enum MarkdownStyler {
                     transform: translate(-50%, -50%);
                 }
 
-                input[type="checkbox"]:hover {
-                    border-color: var(--link-color);
-                }
+                input[type="checkbox"]:hover { border-color: var(--link-color); }
 
-                /* Style list items with checkboxes */
                 li:has(input[type="checkbox"]) {
                     list-style: none;
                     margin-left: -1.5em;
+                }
+
+                /* Mermaid styling */
+                .mermaid {
+                    background: var(--code-bg);
+                    padding: 16px;
+                    border-radius: 12px;
+                    display: flex;
+                    justify-content: center;
+                    margin: 1.5em 0;
+                    border: 1px solid var(--border-color);
+                }
+                
+                /* Math styling */
+                .math-block {
+                    margin: 1.5em 0;
+                    text-align: center;
+                    overflow-x: auto;
                 }
             </style>
             <script>
                 function toggleCheckbox(checkbox, lineNumber) {
                     const isChecked = checkbox.checked;
-                    // Send message to Swift via webkit message handler
                     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.checkboxToggle) {
                         window.webkit.messageHandlers.checkboxToggle.postMessage({
                             line: lineNumber,
@@ -371,6 +535,18 @@ enum MarkdownStyler {
                         });
                     }
                 }
+
+                document.addEventListener('DOMContentLoaded', function() {
+                    if (typeof mermaid !== 'undefined') {
+                        mermaid.initialize({ 
+                            startOnLoad: false, 
+                            theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
+                            securityLevel: 'loose',
+                            fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif'
+                        });
+                        mermaid.run();
+                    }
+                });
             </script>
         </head>
         <body>
