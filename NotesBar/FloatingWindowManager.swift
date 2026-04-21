@@ -77,50 +77,6 @@ class FloatingWindowManager: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    /// Opens the vault graph in a new floating window
-    func openGraphWindow(viewModel: GraphViewModel) {
-        let windowID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")! // Common ID for graph
-        
-        if let existingWindow = openWindows[windowID] {
-            existingWindow.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-
-        let contentView = GraphView(viewModel: viewModel)
-        let hostingView = NSHostingView(rootView: contentView)
-
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
-            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-
-        window.contentView = hostingView
-        window.title = "Vault Graph"
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.center()
-        window.isReleasedWhenClosed = false
-        window.backgroundColor = .clear
-        
-        // Normal window level
-        window.level = .normal
-        
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.willCloseNotification,
-            object: window,
-            queue: .main
-        ) { [weak self] _ in
-            self?.openWindows.removeValue(forKey: windowID)
-        }
-
-        openWindows[windowID] = window
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
     /// Closes a specific floating window
     func closeWindow(id: UUID) {
         if let window = openWindows[id] {
@@ -166,7 +122,7 @@ struct FloatingNoteView: View {
         
         let ext = file.path.lowercased()
         let isDiagram = ext.hasSuffix(".canvas") || ext.hasSuffix(".excalidraw")
-        self._isEditing = State(initialValue: !isDiagram)
+        self._isEditing = State(initialValue: !isDiagram && file.source != .appleNotes)
     }
 
     private var currentFile: NoteFile {
@@ -243,11 +199,11 @@ struct FloatingNoteView: View {
                 .buttonStyle(.borderless)
                 .help("Copy to Clipboard")
 
-                Button(action: { openInObsidian() }) {
+                Button(action: { openInNativeApp() }) {
                     Image(systemName: "arrow.up.forward.app")
                 }
                 .buttonStyle(.borderless)
-                .help("Open in Obsidian")
+                .help(currentFile.source == .appleNotes ? "Open in Apple Notes" : "Open in Obsidian")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -306,6 +262,16 @@ struct FloatingNoteView: View {
     }
 
     private func loadContent() {
+        if currentFile.source == .appleNotes {
+            renderMode = .appleNotes
+            isEditing = false
+            AppleNotesManager.shared.fetchNoteBody(id: currentFile.id) { body in
+                self.content = MarkdownStyler.wrapInHTMLTemplate(body, theme: self.selectedTheme)
+                self.lastSavedContent = self.content
+            }
+            return
+        }
+        
         let fileURL = URL(fileURLWithPath: currentFile.path)
         let ext = fileURL.pathExtension.lowercased()
         do {
@@ -444,7 +410,12 @@ struct FloatingNoteView: View {
         }
     }
 
-    private func openInObsidian() {
+    private func openInNativeApp() {
+        if currentFile.source == .appleNotes {
+            AppleNotesManager.shared.openNoteInNotesApp(id: currentFile.id)
+            return
+        }
+        
         let vaultPath = UserDefaults.standard.string(forKey: "vaultPath") ?? ""
         let vaultName = (vaultPath as NSString).lastPathComponent
         let encodedPath = currentFile.relativePath.encodedForObsidianURL()

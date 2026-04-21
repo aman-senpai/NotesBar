@@ -8,6 +8,7 @@ enum PreviewRenderMode {
     case markdown
     case canvas
     case excalidraw
+    case appleNotes
 }
 
 // MARK: - MarkdownPreviewView
@@ -117,6 +118,15 @@ struct MarkdownPreviewView: View {
     }
 
     private func loadContent() {
+        if currentFile.source == .appleNotes {
+            renderMode = .appleNotes
+            AppleNotesManager.shared.fetchNoteBody(id: currentFile.id) { body in
+                let wrappedBody = "<div class=\"apple-notes-content\">\(body)</div>"
+                self.content = MarkdownStyler.wrapInHTMLTemplate(wrappedBody, theme: self.colorScheme == .dark ? "dark" : "light")
+            }
+            return
+        }
+        
         let fileURL = URL(fileURLWithPath: currentFile.path)
         let ext = fileURL.pathExtension.lowercased()
         do {
@@ -299,6 +309,8 @@ struct MarkdownWebView: NSViewRepresentable {
             }
         case .markdown:
             html = MarkdownStyler.createStyledHTML(from: content, theme: theme)
+        case .appleNotes:
+            html = content
         }
         webView.loadHTMLString(html, baseURL: baseURL)
     }

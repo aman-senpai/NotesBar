@@ -1,22 +1,39 @@
 import Foundation
 
 struct VaultSettings: Equatable, Identifiable, Codable {
+    enum VaultType: String, Codable {
+        case obsidian
+        case appleNotes
+    }
+    
     let id: UUID
     let path: String
     let name: String
+    var type: VaultType = .obsidian
     private var _bookmarkData: Data?
     
     enum CodingKeys: String, CodingKey {
         case id
         case path
         case name
+        case type
         case _bookmarkData
     }
     
-    init(path: String, name: String) {
+    init(path: String, name: String, type: VaultType = .obsidian) {
         self.id = UUID()
         self.path = path
         self.name = name
+        self.type = type
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(UUID.self, forKey: .id)
+        self.path = try container.decode(String.self, forKey: .path)
+        self.name = try container.decode(String.self, forKey: .name)
+        self._bookmarkData = try container.decodeIfPresent(Data.self, forKey: ._bookmarkData)
+        self.type = try container.decodeIfPresent(VaultType.self, forKey: .type) ?? .obsidian
     }
     
     var bookmarkData: Data? {
