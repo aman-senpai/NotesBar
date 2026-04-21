@@ -6,9 +6,11 @@
 //
 
 import SwiftUI
+import CoreSpotlight
 
 @main
 struct NotesBarApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var vaultViewModel = VaultViewModel()
 
     init() {
@@ -21,6 +23,12 @@ struct NotesBarApp: App {
         MenuBarExtra {
             ContentView()
                 .environmentObject(vaultViewModel)
+                .onAppear {
+                    appDelegate.vaultViewModel = vaultViewModel
+                    GlobalSearchManager.shared.setup(vaultViewModel: vaultViewModel)
+                    // Initial indexing
+                    vaultViewModel.fetchAllNotes { _ in }
+                }
         } label: {
             Image(systemName: "diamond.fill")
         }

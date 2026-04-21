@@ -9,13 +9,38 @@ import SwiftUI
 import Foundation
 import AppKit
 
+enum NoteSource: String, Codable {
+    case obsidian
+    case appleNotes
+}
+
+enum SortOption: String, CaseIterable, Codable {
+    case nameAsc = "Name (A-Z)"
+    case nameDesc = "Name (Z-A)"
+    case dateDesc = "Date Modified (Newest)"
+    case dateAsc = "Date Modified (Oldest)"
+}
+
 struct NoteFile: Identifiable, Hashable {
-    let id = UUID()
+    let id: String
     let name: String
     let path: String
     let relativePath: String
     let isDirectory: Bool
     var children: [NoteFile]?
+    var source: NoteSource = .obsidian
+    var modificationDate: Date? = nil
+    
+    init(id: String = UUID().uuidString, name: String, path: String, relativePath: String, isDirectory: Bool, children: [NoteFile]? = nil, source: NoteSource = .obsidian, modificationDate: Date? = nil) {
+        self.id = id
+        self.name = name
+        self.path = path
+        self.relativePath = relativePath
+        self.isDirectory = isDirectory
+        self.children = children
+        self.source = source
+        self.modificationDate = modificationDate
+    }
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -28,12 +53,15 @@ struct NoteFile: Identifiable, Hashable {
 
 struct ContentView: View {
     @EnvironmentObject private var vaultViewModel: VaultViewModel
-    @StateObject private var graphViewModel = GraphViewModel()
+
     @State private var vaultFiles: [NoteFile] = []
     @State private var searchText = ""
     @State private var expandedFolders: Set<String> = []
     @State private var showGraph = false
-    
+    @State private var isLoading = false
+    @State private var activePopoverId: String? = nil
+    @AppStorage("sortOption") private var sortOption: SortOption = .nameAsc
+
     private func openOrCreateTodayNote() {
         // Use Obsidian's daily note interface with the simple URI scheme
         if let url = URL(string: "obsidian://daily") {
@@ -42,12 +70,14 @@ struct ContentView: View {
     }
     
     private func createNewNote() {
-        // Create a new note in Obsidian
-        if let vault = vaultViewModel.currentVault,
-           let encodedVaultName = vault.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            let urlString = "obsidian://new?vault=\(encodedVaultName)"
-            if let url = URL(string: urlString) {
-                NSWorkspace.shared.open(url)
+        if let vault = vaultViewModel.currentVault {
+            if vault.type == .appleNotes {
+                AppleNotesManager.shared.createNewNote()
+            } else if let encodedVaultName = vault.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+                let urlString = "obsidian://new?vault=\(encodedVaultName)"
+                if let url = URL(string: urlString) {
+                    NSWorkspace.shared.open(url)
+                }
             }
         }
     }
@@ -60,10 +90,22 @@ struct ContentView: View {
                     ForEach(vaultViewModel.savedVaults) { vault in
                         Button(action: { vaultViewModel.switchToVault(vault) }) {
                             HStack {
-                                Text(vault.name)
-                                if vault.id == vaultViewModel.currentVault?.id {
+                                Label(vault.name, systemImage: "folder")
+                                if vault.id == vaultViewModel.currentVault?.id && vaultViewModel.currentVault?.type == .obsidian {
                                     Image(systemName: "checkmark")
                                 }
+                            }
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    Button(action: { vaultViewModel.switchToVault(vaultViewModel.appleNotesVault) }) {
+                        HStack {
+                            Label("Apple Notes", systemImage: "apple.logo")
+                            if vaultViewModel.currentVault?.type == .appleNotes {
+                                Spacer()
+                                Image(systemName: "checkmark")
                             }
                         }
                     }
@@ -77,22 +119,41 @@ struct ContentView: View {
                     if !vaultViewModel.savedVaults.isEmpty {
                         Divider()
                         
-                        ForEach(vaultViewModel.savedVaults) { vault in
-                            Button(action: { vaultViewModel.removeVault(vault) }) {
-                                Label("Remove \(vault.name)", systemImage: "minus")
+                        Menu {
+                            ForEach(vaultViewModel.savedVaults) { vault in
+                                Button(role: .destructive, action: { vaultViewModel.removeVault(vault) }) {
+                                    Label("Remove \(vault.name)", systemImage: "trash")
+                                }
                             }
+                        } label: {
+                            Label("Remove Vault...", systemImage: "trash")
                         }
+                    }
+                    
+                    Divider()
+                    
+                    Button(action: { SettingsWindowManager.shared.showSettings() }) {
+                        Label("Settings...", systemImage: "gear")
                     }
                 } label: {
                     HStack {
-                        Image(systemName: "folder")
+                        Image(systemName: vaultViewModel.currentVault?.type == .appleNotes ? "apple.logo" : "folder")
                             .foregroundColor(.white)
                         Text(vaultViewModel.currentVault?.name ?? "Select Vault")
                             .lineLimit(1)
                             .foregroundColor(.white)
-                        Spacer()
-                        Image(systemName: "chevron.down")
-                            .foregroundColor(.white.opacity(0.6))
+                        
+                        if isLoading {
+                            ProgressView()
+                                .controlSize(.small)
+                                .scaleEffect(0.7)
+                                .padding(.leading, 4)
+                            Spacer()
+                        } else {
+                            Spacer()
+                            Image(systemName: "chevron.down")
+                                .foregroundColor(.white.opacity(0.6))
+                        }
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -105,16 +166,23 @@ struct ContentView: View {
                 
                 // Action Buttons
                 HStack(spacing: 8) {
-                    ActionButton(
-                        icon: "circle.hexagongrid.fill",
-                        action: { 
-                            if let vault = vaultViewModel.currentVault {
-                                graphViewModel.updateVaultPath(vault.path)
-                                FloatingWindowManager.shared.openGraphWindow(viewModel: graphViewModel)
+                    Menu {
+                        Picker("Sort By", selection: $sortOption) {
+                            ForEach(SortOption.allCases, id: \.self) { option in
+                                Text(option.rawValue).tag(option)
                             }
-                        },
-                        tooltip: "Graph View"
-                    )
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white)
+                            .frame(width: 30, height: 30)
+                            .background(Color.white.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                    .menuStyle(BorderlessButtonMenuStyle())
+                    .menuIndicator(.hidden)
+                    .help("Sort Notes")
 
                     ActionButton(
                         icon: "plus",
@@ -122,11 +190,13 @@ struct ContentView: View {
                         tooltip: "New Note"
                     )
                     
-                    ActionButton(
-                        icon: "calendar",
-                        action: { openOrCreateTodayNote() },
-                        tooltip: "Today's Note"
-                    )
+                    if vaultViewModel.currentVault?.type != .appleNotes {
+                        ActionButton(
+                            icon: "calendar",
+                            action: { openOrCreateTodayNote() },
+                            tooltip: "Today's Note"
+                        )
+                    }
                     
                     ActionButton(
                         icon: "power",
@@ -165,17 +235,30 @@ struct ContentView: View {
             .padding(.bottom, 8)
             
             // File List
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(filteredFiles) { file in
-                        if file.isDirectory {
-                            CollapsibleFolderView(
-                                folder: file,
-                                expandedFolders: $expandedFolders,
-                                level: 0
-                            )
-                        } else {
-                            FileRow(file: file)
+            if isLoading {
+                Spacer()
+                ProgressView()
+                    .controlSize(.regular)
+                    .scaleEffect(1.2)
+                Text("Loading Apple Notes...")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.6))
+                    .padding(.top, 12)
+                Spacer()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(filteredFiles) { file in
+                            if file.isDirectory {
+                                CollapsibleFolderView(
+                                    folder: file,
+                                    expandedFolders: $expandedFolders,
+                                    activePopoverId: $activePopoverId,
+                                    level: 0
+                                )
+                            } else {
+                                FileRow(file: file, activePopoverId: $activePopoverId)
+                            }
                         }
                     }
                 }
@@ -197,54 +280,95 @@ struct ContentView: View {
     }
     
     private var filteredFiles: [NoteFile] {
+        let filesToSort: [NoteFile]
+        
         if searchText.isEmpty {
-            return vaultFiles.sorted { item1, item2 in
-                if item1.isDirectory && !item2.isDirectory {
-                    return true
-                } else if !item1.isDirectory && item2.isDirectory {
-                    return false
-                } else {
-                    return item1.name.localizedCaseInsensitiveCompare(item2.name) == .orderedAscending
-                }
-            }
-        }
-
-        // Flatten all files recursively for search
-        func flattenFiles(_ files: [NoteFile]) -> [NoteFile] {
-            var result: [NoteFile] = []
-            for file in files {
-                if file.isDirectory {
-                    if let children = file.children {
-                        result.append(contentsOf: flattenFiles(children))
+            filesToSort = vaultFiles
+        } else {
+            // Flatten all files recursively for search
+            func flattenFiles(_ files: [NoteFile]) -> [NoteFile] {
+                var result: [NoteFile] = []
+                for file in files {
+                    if file.isDirectory {
+                        if let children = file.children {
+                            result.append(contentsOf: flattenFiles(children))
+                        }
+                    } else {
+                        result.append(file)
                     }
-                } else {
-                    result.append(file)
                 }
+                return result
             }
-            return result
+
+            let allFiles = flattenFiles(vaultFiles)
+            let searchTerms = searchText.lowercased().split(separator: " ")
+
+            filesToSort = allFiles.filter { file in
+                file.name.lowercased().containsAll(searchTerms)
+            }
         }
-
-        let allFiles = flattenFiles(vaultFiles)
-        let searchTerms = searchText.lowercased().split(separator: " ")
-
-        return allFiles.filter { file in
-            file.name.lowercased().containsAll(searchTerms)
-        }.sorted { item1, item2 in
-            item1.name.localizedCaseInsensitiveCompare(item2.name) == .orderedAscending
+        
+        return sortFiles(filesToSort)
+    }
+    
+    private func sortFiles(_ files: [NoteFile]) -> [NoteFile] {
+        let sorted = files.sorted { item1, item2 in
+            // Always keep directories above files
+            if item1.isDirectory && !item2.isDirectory { return true }
+            if !item1.isDirectory && item2.isDirectory { return false }
+            
+            switch sortOption {
+            case .nameAsc:
+                return item1.name.localizedCaseInsensitiveCompare(item2.name) == .orderedAscending
+            case .nameDesc:
+                return item1.name.localizedCaseInsensitiveCompare(item2.name) == .orderedDescending
+            case .dateDesc:
+                let d1 = item1.modificationDate ?? Date.distantPast
+                let d2 = item2.modificationDate ?? Date.distantPast
+                return d1 > d2
+            case .dateAsc:
+                let d1 = item1.modificationDate ?? Date.distantPast
+                let d2 = item2.modificationDate ?? Date.distantPast
+                return d1 < d2
+            }
+        }
+        
+        // Recursively sort children
+        return sorted.map { file in
+            var newFile = file
+            if let children = file.children {
+                newFile.children = sortFiles(children)
+            }
+            return newFile
         }
     }
     
     private func loadVaultContents() {
         guard let vault = vaultViewModel.currentVault else { return }
         
+        // Clear old files before loading new ones
+        vaultFiles = []
+        
+        if vault.type == .appleNotes {
+            isLoading = true
+            AppleNotesManager.shared.fetchNotes { notes in
+                // Ensure we haven't switched away from Apple Notes before the fetch completes
+                guard self.vaultViewModel.currentVault?.id == vault.id else { return }
+                self.vaultFiles = notes
+                self.isLoading = false
+            }
+            return
+        }
+        
         let fileManager = FileManager.default
         let vaultURL = URL(fileURLWithPath: vault.path)
         
         func loadDirectoryContents(at url: URL, relativePath: String = "") -> [NoteFile]? {
             do {
-                let contents = try fileManager.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
+                let contents = try fileManager.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey])
                 return contents.compactMap { url -> NoteFile? in
                     let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+                    let modificationDate = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
                     
                     // Skip any file or directory starting with a dot
                     if url.lastPathComponent.hasPrefix(".") {
@@ -262,7 +386,8 @@ struct ContentView: View {
                             path: url.path,
                             relativePath: itemRelativePath,
                             isDirectory: true,
-                            children: children
+                            children: children,
+                            modificationDate: modificationDate
                         )
                     } else {
                         // Also skip common non-markdown hidden files if needed, 
@@ -272,7 +397,8 @@ struct ContentView: View {
                             path: url.path,
                             relativePath: itemRelativePath,
                             isDirectory: false,
-                            children: nil
+                            children: nil,
+                            modificationDate: modificationDate
                         )
                     }
                 }
@@ -284,6 +410,9 @@ struct ContentView: View {
         
         if let files = loadDirectoryContents(at: vaultURL) {
             vaultFiles = files
+            isLoading = false
+        } else {
+            isLoading = false
         }
     }
 }
@@ -291,6 +420,7 @@ struct ContentView: View {
 struct CollapsibleFolderView: View {
     let folder: NoteFile
     @Binding var expandedFolders: Set<String>
+    @Binding var activePopoverId: String?
     let level: Int
     @State private var isHovered = false
     @EnvironmentObject private var vaultViewModel: VaultViewModel
@@ -345,23 +475,16 @@ struct CollapsibleFolderView: View {
             
             // Folder contents (when expanded)
             if isExpanded, let children = folder.children {
-                ForEach(children.sorted { item1, item2 in
-                    if item1.isDirectory && !item2.isDirectory {
-                        return true
-                    } else if !item1.isDirectory && item2.isDirectory {
-                        return false
-                    } else {
-                        return item1.name.localizedCaseInsensitiveCompare(item2.name) == .orderedAscending
-                    }
-                }) { child in
+                ForEach(children) { child in
                     if child.isDirectory {
                         CollapsibleFolderView(
                             folder: child,
                             expandedFolders: $expandedFolders,
+                            activePopoverId: $activePopoverId,
                             level: level + 1
                         )
                     } else {
-                        FileRow(file: child)
+                        FileRow(file: child, activePopoverId: $activePopoverId)
                             .padding(.leading, indentation + 16)
                     }
                 }
@@ -405,8 +528,8 @@ struct CollapsibleFolderView: View {
 struct FileRow: View {
     @EnvironmentObject private var vaultViewModel: VaultViewModel
     let file: NoteFile
+    @Binding var activePopoverId: String?
     @State private var isHovered = false
-    @State private var showPreview = false
     @State private var isPreviewHovered = false
     @State private var showWorkItem: DispatchWorkItem?
     @State private var hideWorkItem: DispatchWorkItem?
@@ -415,6 +538,7 @@ struct FileRow: View {
         HStack(spacing: 8) {
             let ext = (file.name as NSString).pathExtension.lowercased()
             let icon: String = {
+                if file.source == .appleNotes { return "apple.logo" }
                 switch ext {
                 case "canvas": return "square.grid.2x2"
                 case "excalidraw": return "scribble.variable"
@@ -447,8 +571,13 @@ struct FileRow: View {
             showWorkItem = nil
             hideWorkItem?.cancel()
             hideWorkItem = nil
-            showPreview = false
-            FloatingWindowManager.shared.openFloatingWindow(for: file, vaultViewModel: vaultViewModel)
+            activePopoverId = nil
+            
+            if file.source == .appleNotes {
+                AppleNotesManager.shared.openNoteInNotesApp(id: file.id)
+            } else {
+                FloatingWindowManager.shared.openFloatingWindow(for: file, vaultViewModel: vaultViewModel)
+            }
         }
         .onHover { hovering in
             isHovered = hovering
@@ -460,39 +589,54 @@ struct FileRow: View {
             hideWorkItem = nil
 
             if hovering {
-                // Debounce show: only open popover after cursor rests for 180ms
+                // Debounce show: only open popover after cursor rests for 400ms
                 let work = DispatchWorkItem {
                     if self.isHovered {
-                        self.showPreview = true
+                        self.activePopoverId = self.file.id
                     }
                 }
                 showWorkItem = work
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: work)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
             } else {
                 // Debounce hide: allow brief gap when moving to popover
                 let work = DispatchWorkItem {
                     if !self.isHovered && !self.isPreviewHovered {
-                        self.showPreview = false
+                        if self.activePopoverId == self.file.id {
+                            self.activePopoverId = nil
+                        }
                     }
                 }
                 hideWorkItem = work
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
             }
         }
-        .popover(isPresented: $showPreview, arrowEdge: .trailing) {
+        .popover(isPresented: Binding(
+            get: { activePopoverId == file.id },
+            set: { newValue in
+                if !newValue && activePopoverId == file.id {
+                    activePopoverId = nil
+                }
+            }
+        ), arrowEdge: .trailing) {
             MarkdownPreviewView(file: file) {
-                showPreview = false
-                FloatingWindowManager.shared.openFloatingWindow(for: file, vaultViewModel: vaultViewModel)
+                activePopoverId = nil
+                if file.source == .appleNotes {
+                    AppleNotesManager.shared.openNoteInNotesApp(id: file.id)
+                } else {
+                    FloatingWindowManager.shared.openFloatingWindow(for: file, vaultViewModel: vaultViewModel)
+                }
             }
             .onHover { hovering in
                 isPreviewHovered = hovering
                 if !hovering && !isHovered {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                         if !self.isHovered && !self.isPreviewHovered {
-                            self.showPreview = false
+                            if self.activePopoverId == self.file.id {
+                                self.activePopoverId = nil
+                            }
                         }
                     }
-                    }
+                }
             }
         }
     }

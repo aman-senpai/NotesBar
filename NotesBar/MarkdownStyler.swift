@@ -283,7 +283,7 @@ enum MarkdownStyler {
     }
 
     /// Wraps HTML content in a full HTML document with styling
-    private static func wrapInHTMLTemplate(_ bodyContent: String, theme: String = "system") -> String {
+    static func wrapInHTMLTemplate(_ bodyContent: String, theme: String = "system") -> String {
         let themeClass = theme == "system" ? "" : "theme-\(theme)"
         
         return """
@@ -523,6 +523,46 @@ enum MarkdownStyler {
                     margin: 1.5em 0;
                     text-align: center;
                     overflow-x: auto;
+                }
+
+                /* Apple Notes specific styles */
+                .Apple-dash-list {
+                    list-style-type: none;
+                    padding-left: 1.8em;
+                }
+                .Apple-dash-list li::before {
+                    content: "–";
+                    position: absolute;
+                    margin-left: -1.2em;
+                    color: var(--text-color);
+                    opacity: 0.6;
+                }
+                
+                /* Ensure Apple Notes h1 matches our theme */
+                body > div > h1:first-child {
+                    font-size: 28px;
+                    margin-top: 0;
+                    border-bottom: 1px solid var(--border-color);
+                    padding-bottom: 0.3em;
+                    color: var(--heading-color);
+                }
+                
+                /* Override Apple Notes hardcoded inline styles */
+                .apple-notes-content * {
+                    color: var(--text-color) !important;
+                    background-color: transparent !important;
+                }
+                .apple-notes-content a, .apple-notes-content a * {
+                    color: var(--link-color) !important;
+                }
+                
+                /* Invert handwriting and images in Apple Notes for dark mode */
+                html.theme-dark .apple-notes-content img,
+                html.theme-dark .apple-notes-content object,
+                html.theme-dark .apple-notes-content svg {
+                    filter: invert(1) hue-rotate(180deg);
+                    mix-blend-mode: screen;
+                    border-radius: 8px;
                 }
             </style>
             <script>
