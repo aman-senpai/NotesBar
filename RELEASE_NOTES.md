@@ -31,6 +31,7 @@ A completely overhauled settings experience.
 - **Performance**: Improved file indexing speed using concurrent background processing.
 - **Stability**: Fixed a recurring crash during multi-vault synchronization.
 - **UI Polishing**: Optimized search list layouts to prevent content overlap and improved keyboard navigation focus.
+- **Cleanup**: Removed the **Vault Graph** feature due to its buggy nature and low utility, focusing on core note discovery and previewing.
 
 ---
 *Thank you for using NotesBar! Update now to experience the ultimate note-discovery workflow directly from your macOS menu bar.*
