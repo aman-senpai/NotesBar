@@ -1,6 +1,6 @@
 # NotesBar
 
-NotesBar is a native macOS application that provides rapid access to your Obsidian vault directly from the menu bar. Designed for speed and minimal context switching, it allows users to search, preview, and visualize their knowledge base without full app transitions.
+NotesBar is a professional macOS utility designed to unify personal knowledge from Obsidian and Apple Notes into a single, high-performance interface. It provides system-wide search, instant previews, and seamless context preservation, enabling you to interact with your notes without disrupting your primary workflow.
 
 ## Architecture
 
@@ -8,62 +8,60 @@ The diagram below outlines the core components and data flow within the applicat
 
 ```mermaid
 graph TD
-    A[MenuBar Controller] --> B[Vault Provider]
-    B --> C[File System Watcher]
-    A --> D[Note ListView]
-    A --> E[Interactive Graph]
-    D --> F[Markdown Preview]
-    F --> G[Mermaid/KaTeX Engines]
-    D --> H[Floating Windows]
-    D --> I[Obsidian Integration]
+    A[Global Search Controller] --> B[Vault Provider]
+    B --> C[Obsidian Vaults]
+    B --> D[Apple Notes Service]
+    A --> E[Spotlight Indexer]
+    A --> F[Dual-Pane Search View]
+    F --> G[Markdown Preview Engine]
+    G --> H[Mermaid/KaTeX Rendering]
+    F --> I[Floating Window Manager]
 ```
 
 ## User Workflow
 
-NotesBar streamlines the navigation of your markdown notes through a concise interaction model.
+NotesBar streamlines the discovery and interaction of your notes through a unified search-first model.
 
 ```mermaid
 graph LR
-    Start([Open App]) --> Select[Select Vault]
-    Select --> Hover[Hover Icon]
-    Hover --> List[View Note List]
-    List --> Search[Search Note]
-    Search --> Preview[Show Markdown Preview]
-    Preview --> Action{Open Mode}
-    Action --> Floating[Floating Window]
-    Action --> Obsidian[Obsidian App]
+    Start([Global Shortcut]) --> Search[System-Wide Search]
+    Search --> Preview[Live Metadata Preview]
+    Preview --> Action{Navigation}
+    Action --> Floating[Floating Note Window]
+    Action --> Native[Native App Handover]
+    Action --> Spotlight[Spotlight Tab Search]
 ```
 
-## Features
+## Core Features
 
-- **Menu Bar Access**: Instant visibility and interaction from the macOS menu bar.
-- **Vault Graph**: A force-directed graph to visualize note connections and clusters.
-- **Markdown Rendering**: High-performance previews with syntax highlighting and task lists.
-- **Mermaid Diagrams**: Native rendering of flowcharts, sequence diagrams, and gantt charts.
-- **Mathematical Support**: Full KaTeX integration for high-quality mathematical notation.
-- **Floating Windows**: Persist notes in independent windows for cross-task reference.
-- **Deep Integration**: Seamlessly opens notes in Obsidian via URI schemes.
+- **Unified Search Interface**: A high-performance search experience that aggregates content from all Obsidian vaults and Apple Notes simultaneously.
+- **Global Accessibility**: Access your entire knowledge base from any application using a dedicated system-wide shortcut (Ctrl + N).
+- **Apple Notes Integration**: Native support for viewing and searching Apple Notes with high-fidelity Markdown previews.
+- **Spotlight System Integration**: Deep integration with macOS Spotlight, including support for specialized "Tab to Search" functionality for rapid note retrieval.
+- **Markdown and Diagram Rendering**: High-performance rendering of Markdown content, including complex Mermaid diagrams and KaTeX mathematical notation.
+- **Persistent Floating Windows**: Ability to pin specific notes in independent, floating windows for continuous reference during complex tasks.
+- **Context Preservation**: Designed to operate entirely from the menu bar and floating panels, ensuring your primary workspace remains undisturbed.
 
 ## Installation
 
 ### Requirements
 
-- macOS 12.0 or later.
-- Obsidian installed locally.
+- macOS 13.0 or later.
+- Obsidian (Optional, for Obsidian vault support).
 
-### Steps
+### Setup
 
-1. **Download**: Obtain the latest distribution as a ZIP archive from the [Releases page](https://github.com/aman-senpai/NotesBar/releases).
+1. **Download**: Obtain the latest distribution as a ZIP archive from the Releases page.
 2. **Extraction**: Unpack the ZIP archive to your local storage.
-3. **Deployment**: Move `NotesBar.app` to your `/Applications` directory.
-4. **Execution**: Launch the application and designate your primary Obsidian vault directory when prompted.
+3. **Deployment**: Move NotesBar.app to your Applications directory.
+4. **Execution**: Launch the application and grant necessary permissions for directory access and Apple Notes retrieval.
 
 ## Development
 
 ### Prerequisites
 
 - Xcode 15.0 or later.
-- Swift 5.9+ toolchain.
+- Swift 5.10+ toolchain.
 
 ### Build Process
 
@@ -75,15 +73,11 @@ graph LR
    ```bash
    open NotesBar.xcodeproj
    ```
-3. Compile and execute using `Cmd+R` within Xcode.
-
-## Contributions
-
-Contributions are welcome via pull requests. Please ensure code quality and adhere to the existing design patterns.
+3. Compile and execute using Cmd+R within Xcode.
 
 ## Acknowledgments
 
-- [Obsidian](https://obsidian.md/) ecosystem.
-- [Mermaid.js](https://mermaid-js.github.io/) for diagramming logic.
-- [KaTeX](https://katex.org/) for mathematical rendering.
-- [D3.js](https://d3js.org/) for graph visualization.
+- Obsidian ecosystem and URI schemes.
+- Apple Notes framework and automation services.
+- Mermaid.js for advanced diagramming logic.
+- KaTeX for mathematical notation rendering.
