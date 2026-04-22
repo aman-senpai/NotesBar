@@ -161,6 +161,9 @@ struct GlobalSearchView: View {
                     openSelectedNote(note)
                     return nil
                 }
+            } else if event.keyCode == 53 { // Escape
+                onClose()
+                return nil
             }
             return event
         }

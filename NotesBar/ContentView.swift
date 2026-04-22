@@ -138,10 +138,10 @@ struct ContentView: View {
                 } label: {
                     HStack {
                         Image(systemName: vaultViewModel.currentVault?.type == .appleNotes ? "apple.logo" : "folder")
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                         Text(vaultViewModel.currentVault?.name ?? "Select Vault")
                             .lineLimit(1)
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                         
                         if isLoading {
                             ProgressView()
@@ -152,12 +152,12 @@ struct ContentView: View {
                         } else {
                             Spacer()
                             Image(systemName: "chevron.down")
-                                .foregroundColor(.white.opacity(0.6))
+                                .foregroundColor(.primary.opacity(0.6))
                         }
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.1))
+                    .background(Color.primary.opacity(0.1))
                     .cornerRadius(8)
                 }
                 .menuStyle(BorderlessButtonMenuStyle())
@@ -175,9 +175,9 @@ struct ContentView: View {
                     } label: {
                         Image(systemName: "arrow.up.arrow.down")
                             .font(.system(size: 14))
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                             .frame(width: 30, height: 30)
-                            .background(Color.white.opacity(0.1))
+                            .background(Color.primary.opacity(0.1))
                             .clipShape(Circle())
                     }
                     .menuStyle(BorderlessButtonMenuStyle())
@@ -212,23 +212,23 @@ struct ContentView: View {
             // Search Bar
             HStack {
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.primary.opacity(0.5))
                     .font(.system(size: 13, weight: .medium))
                 TextField("Search notes...", text: $searchText)
                     .textFieldStyle(PlainTextFieldStyle())
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                     .font(.system(size: 13))
                 if !searchText.isEmpty {
                     Button(action: { searchText = "" }) {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundColor(.primary.opacity(0.5))
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(Color.white.opacity(0.08))
+            .background(Color.primary.opacity(0.08))
             .cornerRadius(10)
             .padding(.horizontal, 16)
             .padding(.top, 4)
@@ -242,7 +242,7 @@ struct ContentView: View {
                     .scaleEffect(1.2)
                 Text("Loading Apple Notes...")
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(.primary.opacity(0.6))
                     .padding(.top, 12)
                 Spacer()
             } else {
@@ -442,25 +442,25 @@ struct CollapsibleFolderView: View {
                 HStack(spacing: 4) {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 10))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(.primary.opacity(0.6))
                         .frame(width: 12)
                     
                     Image(systemName: isExpanded ? "folder.fill" : "folder")
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                     
                     Text(folder.name)
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                     
                     Spacer()
                     
                     Text("\(folder.children?.count ?? 0)")
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(.primary.opacity(0.6))
                         .font(.caption)
                 }
                 .padding(.vertical, 4)
                 .padding(.horizontal, 8)
                 .padding(.leading, indentation)
-                .background(isHovered ? Color.white.opacity(0.1) : Color.clear)
+                .background(isHovered ? Color.primary.opacity(0.1) : Color.clear)
                 .cornerRadius(6)
             }
             .buttonStyle(PlainButtonStyle())
@@ -548,7 +548,7 @@ struct FileRow: View {
             
             Image(systemName: icon)
                 .font(.system(size: 14))
-                .foregroundColor(.white.opacity(0.7))
+                .foregroundColor(.primary.opacity(0.7))
                 
             let displayName = file.name
                 .replacingOccurrences(of: ".md", with: "")
@@ -557,12 +557,12 @@ struct FileRow: View {
                 
             Text(displayName)
                 .font(.system(size: 13))
-                .foregroundColor(.white.opacity(0.9))
+                .foregroundColor(.primary.opacity(0.9))
             Spacer()
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 10)
-        .background(isHovered ? Color.white.opacity(0.12) : Color.clear)
+        .background(isHovered ? Color.primary.opacity(0.12) : Color.clear)
         .cornerRadius(8)
         .contentShape(Rectangle())
         .onTapGesture {
