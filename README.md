@@ -10,6 +10,16 @@ NotesBar is a high-performance macOS utility designed to seamlessly unify your p
 
 ---
 
+## 📦 Installation
+
+You can easily install NotesBar via Homebrew:
+
+```bash
+brew install --cask aman-senpai/apps/notesbar
+```
+
+---
+
 ## 🏗 Architecture
 
 The diagram below outlines the core components and data flow within the application.
