@@ -1,10 +1,16 @@
-# NotesBar
+<div align="center">
+  <img src="NotesBar/Assets.xcassets/AppIcon.appiconset/icon_512x512@1x.png" width="128" height="128" alt="NotesBar Icon"/>
+  <h1>NotesBar</h1>
+  <p><strong>A unified, professional macOS utility for Obsidian and Apple Notes.</strong></p>
+</div>
 
-NotesBar is a professional macOS utility designed to unify personal knowledge from Obsidian and Apple Notes into a single, high-performance interface. It provides system-wide search, instant previews, and seamless context preservation, enabling you to interact with your notes without disrupting your primary workflow.
+NotesBar is a high-performance macOS utility designed to seamlessly unify your personal knowledge base across Obsidian and Apple Notes. It provides instantaneous system-wide search, live markdown previews, and floating context preservation, empowering you to interact with your notes without disrupting your primary workflow.
+
+![NotesBar Demo](assets/demo.gif)
 
 ---
 
-## Architecture
+## 🏗 Architecture
 
 The diagram below outlines the core components and data flow within the application.
 
@@ -18,11 +24,11 @@ graph TD
     F --> G[Markdown Preview Engine]
     G --> H[Mermaid/KaTeX Rendering]
     F --> I[Floating Window Manager]
-````
+```
 
 ---
 
-## User Workflow
+## 🔄 User Workflow
 
 NotesBar streamlines the discovery and interaction of your notes through a unified search-first model.
 
@@ -38,7 +44,7 @@ graph LR
 
 ---
 
-## Core Features
+## ✨ Core Features
 
 * **Unified Search Interface**
   A high-performance search experience that aggregates content from all Obsidian vaults and Apple Notes simultaneously.
@@ -63,73 +69,9 @@ graph LR
 
 ---
 
-## Installation
-
-### Requirements
-
-* macOS 13.0 or later
-* Obsidian (optional, required only for obsidian vault integration)
-
-### Install from Release
-
-1. **Download the latest version**
-   Visit the [Releases page](https://github.com/aman-senpai/NotesBar/releases) and download the latest `.zip` archive.
-
-2. **Extract the archive**
-   Double-click the downloaded ZIP file to unpack it.
-
-3. **Move to Applications**
-   Drag `NotesBar.app` into your `/Applications` folder.
-
-4. **Launch the app**
-   Open NotesBar from Applications.
-
-5. **Grant permissions (first launch)**
-
-   * Allow directory access for Obsidian vault indexing
-   * Grant permission for Apple Notes access when prompted
-
-### Gatekeeper Note (First Launch Issue)
-
-If macOS blocks the app with a security warning:
-
-* Open **System Settings → Privacy & Security**
-* Scroll down and click **“Open Anyway”** for NotesBar
-* Or right-click the app and select **Open**
-
----
-
-## Development
-
-### Prerequisites
-
-* Xcode 15.0 or later
-* Swift 5.10+ toolchain
-
-### Build Process
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/aman-senpai/NotesBar.git
-   ```
-
-2. Open the project:
-
-   ```bash
-   open NotesBar.xcodeproj
-   ```
-
-3. Build and run using `Cmd + R` in Xcode.
-
----
-
-## Acknowledgments
+## 🙏 Acknowledgments
 
 * Obsidian ecosystem and URI schemes
 * Apple Notes framework and automation services
 * Mermaid.js for diagram rendering
 * KaTeX for mathematical notation support
-
-```
-```
