@@ -60,6 +60,7 @@ struct ContentView: View {
     @State private var showGraph = false
     @State private var isLoading = false
     @State private var activePopoverId: String? = nil
+    @State private var appleNotesError: String? = nil
     @AppStorage("sortOption") private var sortOption: SortOption = .nameAsc
 
     private func openOrCreateTodayNote() {
@@ -245,6 +246,27 @@ struct ContentView: View {
                     .foregroundColor(.primary.opacity(0.6))
                     .padding(.top, 12)
                 Spacer()
+            } else if let error = appleNotesError {
+                VStack(spacing: 16) {
+                    Spacer()
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(.orange)
+                    Text(error)
+                        .font(.system(size: 12))
+                        .foregroundColor(.primary.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                    Button("Open Privacy & Security Settings") {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    .font(.system(size: 12))
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
+                    Spacer()
+                }
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -267,14 +289,33 @@ struct ContentView: View {
         .frame(width: 400, height: 600)
         .onAppear {
             loadVaultContents()
-            
-            // Add observer for vault refresh notification
+
             NotificationCenter.default.addObserver(
                 forName: NSNotification.Name("RefreshVaultFiles"),
                 object: nil,
                 queue: .main
             ) { _ in
                 loadVaultContents()
+            }
+
+            NotificationCenter.default.addObserver(
+                forName: .appleNotesPermissionDenied,
+                object: nil,
+                queue: .main
+            ) { notification in
+                let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "NotesBar"
+                let detail = notification.object as? String ?? ""
+                appleNotesError = "\(appName) doesn't have permission to control Apple Notes.\n\nGrant permission in System Settings > Privacy & Security > Automation.\n\n\(detail)"
+                isLoading = false
+            }
+
+            NotificationCenter.default.addObserver(
+                forName: .appleNotesFetchFailed,
+                object: nil,
+                queue: .main
+            ) { notification in
+                appleNotesError = notification.object as? String ?? "Failed to load Apple Notes. Check permissions."
+                isLoading = false
             }
         }
     }
@@ -348,7 +389,8 @@ struct ContentView: View {
         
         // Clear old files before loading new ones
         vaultFiles = []
-        
+        appleNotesError = nil
+
         if vault.type == .appleNotes {
             isLoading = true
             AppleNotesManager.shared.fetchNotes { notes in

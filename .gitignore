@@ -111,4 +111,11 @@ iOSInjectionProject/
 .AppleDesktop
 Network Trash Folder
 Temporary Items
-.apdisk 
+.apdisk
+
+# Code Review Graph
+code-review-graph.db
+code-review-graph.db-shm
+code-review-graph.db-wal
+.code-review-graph/
+code-review-graph-analysis

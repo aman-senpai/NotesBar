@@ -57,22 +57,35 @@ class AppleNotesManager {
         DispatchQueue.global(qos: .userInitiated).async {
             var attempt = 0
             var finalOutput: String? = nil
-            
+            var lastErrorNumber: Int = 0
+
             while attempt < maxRetries {
                 attempt += 1
                 guard let script = NSAppleScript(source: scriptSource) else {
                     print("Failed to compile AppleScript")
                     break
                 }
-                
+
                 var errorInfo: NSDictionary?
                 let descriptor = script.executeAndReturnError(&errorInfo)
-                
+
                 if let errorInfo = errorInfo {
                     let errorNumber = errorInfo[NSAppleScript.errorNumber] as? Int ?? 0
                     let errorMessage = errorInfo[NSAppleScript.errorMessage] as? String ?? ""
+                    lastErrorNumber = errorNumber
                     print("AppleScript attempt \(attempt) failed: \(errorMessage) (\(errorNumber))")
-                    
+
+                    // Permission / not-authorized errors — retrying will never help
+                    if errorNumber == -1743 || errorNumber == -1744 || errorNumber == -1750 {
+                        DispatchQueue.main.async {
+                            NotificationCenter.default.post(
+                                name: .appleNotesPermissionDenied,
+                                object: errorMessage
+                            )
+                        }
+                        break
+                    }
+
                     if attempt < maxRetries {
                         if errorNumber == -600 || errorNumber == -10004 {
                             DispatchQueue.main.async {
@@ -86,7 +99,21 @@ class AppleNotesManager {
                     break
                 }
             }
-            
+
+            // If all retries exhausted, notify about the failure
+            // Skip if we already posted a permission-denied notification
+            if finalOutput == nil && attempt == maxRetries
+                && lastErrorNumber != -1743 && lastErrorNumber != -1744 && lastErrorNumber != -1750 {
+                let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "NotesBar"
+                let message = "Make sure \(appName) has permission to control Notes in System Settings > Privacy & Security > Automation."
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: .appleNotesFetchFailed,
+                        object: message
+                    )
+                }
+            }
+
             DispatchQueue.main.async {
                 completion(finalOutput)
             }
@@ -188,7 +215,17 @@ class AppleNotesManager {
     func openNoteInNotesApp(id: String) {
         let scriptSource = "tell application \"Notes\" to show note id \"\(id)\""
         guard let script = NSAppleScript(source: scriptSource) else { return }
-        script.executeAndReturnError(nil)
+        var errorInfo: NSDictionary?
+        script.executeAndReturnError(&errorInfo)
+        if let errorInfo = errorInfo {
+            let errorNumber = errorInfo[NSAppleScript.errorNumber] as? Int ?? 0
+            let errorMessage = errorInfo[NSAppleScript.errorMessage] as? String ?? ""
+            print("openNoteInNotesApp AppleScript failed: \(errorMessage) (\(errorNumber))")
+            NotificationCenter.default.post(
+                name: .appleNotesPermissionDenied,
+                object: errorMessage
+            )
+        }
         NSWorkspace.shared.launchApplication("Notes")
     }
     
@@ -201,6 +238,21 @@ class AppleNotesManager {
         end tell
         """
         guard let script = NSAppleScript(source: scriptSource) else { return }
-        script.executeAndReturnError(nil)
+        var errorInfo: NSDictionary?
+        script.executeAndReturnError(&errorInfo)
+        if let errorInfo = errorInfo {
+            let errorNumber = errorInfo[NSAppleScript.errorNumber] as? Int ?? 0
+            let errorMessage = errorInfo[NSAppleScript.errorMessage] as? String ?? ""
+            print("createNewNote AppleScript failed: \(errorMessage) (\(errorNumber))")
+            NotificationCenter.default.post(
+                name: .appleNotesPermissionDenied,
+                object: errorMessage
+            )
+        }
     }
+}
+
+extension Notification.Name {
+    static let appleNotesPermissionDenied = Notification.Name("appleNotesPermissionDenied")
+    static let appleNotesFetchFailed = Notification.Name("appleNotesFetchFailed")
 }
