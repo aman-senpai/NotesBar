@@ -12,11 +12,16 @@ NotesBar is a high-performance macOS utility designed to seamlessly unify your p
 
 ## 📦 Installation
 
-You can easily install NotesBar via Homebrew:
+**Option A — Homebrew (recommended)**
 
 ```bash
-brew install --cask aman-senpai/apps/notesbar
+brew tap aman-senpai/tap
+brew install --cask notesbar
 ```
+
+**Option B — Manual download**
+
+Download the latest `.zip` from [Releases](https://github.com/aman-senpai/NotesBar/releases), move `NotesBar.app` to `/Applications`, and run.
 
 ---
 
